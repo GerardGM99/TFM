@@ -54,21 +54,22 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
     '''
     
     # Format for the output table
-    mydtype=[("inst","|S15"), ("filter","|S15"), ("mjd","<f4"),("mjderr","<f4"), 
+    mydtype=[("name", "|S25"), ("inst","|S15"), ("filter","|S15"), ("mjd","<f4"),("mjderr","<f4"), 
              ("mag","<f4"), ("magerr","<f4"), ("flux","<f4"), ("fluxerr","<f4")]
     
     # Read directory with light curve files
     if ins != 'NEOWISE':
         lc = os.listdir(lc_directory)
     
-    # Read the file with the ids and coordinates of the sources 
-    table_coord = pd.read_csv(asciicords)
+    # Read the file with the ids and coordinates of the sources
+    if ins != 'BLACKGEM':
+        table_coord = pd.read_csv(asciicords)
     
     
     # Light curves from Zwicky Transient Facility [ZTF] (https://www.ztf.caltech.edu)
     if ins == 'ZTF':
         # Create directory where to store the output files
-        output_path = './ztf_lightcurves_std'
+        output_path = './ZTF_lightcurves_std'
         if not os.path.isdir(output_path):
             os.makedirs(output_path)
         
@@ -95,6 +96,7 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
             ra = round(table_clean['ra'][0], 2)
             dec = round(table_clean['dec'][0], 2)
             file_name = table_coord[source_name][(round(table_coord['ra'],2)==ra) & (round(table_coord['dec'],2)==dec)].iloc[0]
+            final_table['name'] = np.repeat(file_name, len(final_table))
             
             # Write the output table in the desired directory
             final_table.write(f'{output_path}/{file_name}.{suffix}', format=output_format, overwrite=True)
@@ -103,7 +105,7 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
     # Light curves from All-Sky Automated Surveey for Supernovae [ASAS-SN] (https://asas-sn.osu.edu)   
     if ins == 'ASAS_SN':
           # Create directory where to store the output files
-          output_path = './asas_sn_lightcurves_std'
+          output_path = './ASAS_SN_lightcurves_std'
           if not os.path.isdir(output_path):
               os.makedirs(output_path)
           
@@ -130,6 +132,7 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
               
               # Name of the file, the same as the imput lc file because the downloaded tables from asas-sn don't have coordinates
               file_name_only = file.split('.csv')[0]
+              final_table['name'] = np.repeat(file_name_only, len(final_table))
               
               # Write the output table in the desired directory
               final_table.write(f'{output_path}/{file_name_only}.{suffix}', format=output_format, overwrite=True)
@@ -138,7 +141,7 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
     # Light curves from Asteroid Terrestrial-impact Last Alert System [ATLAS] (https://fallingstar-data.com/forcedphot/)
     if ins == 'ATLAS':
         # Create directory where to store the output files
-        output_path = './atlas_lightcurves_std'
+        output_path = './ATLAS_lightcurves_std'
         if not os.path.isdir(output_path):
             os.makedirs(output_path)
         
@@ -170,6 +173,7 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
             ra = round(table_clean['RA'][0], 2)
             dec = round(table_clean['Dec'][0], 2)
             file_name = table_coord[source_name][(round(table_coord['ra'],2)==ra) & (round(table_coord['dec'],2)==dec)].iloc[0]
+            final_table['name'] = np.repeat(file_name, len(final_table))
             
             # Write the output table in the desired directory
             final_table.write(f'{output_path}/{file_name}.{suffix}', format=output_format, overwrite=True)
@@ -177,12 +181,12 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
     
     if ins == 'NEOWISE':
         # Create directory where to store the output files
-        output_path = './neowise_lightcurves_std'
+        output_path = './NEOWISE_lightcurves_std'
         if not os.path.isdir(output_path):
             os.makedirs(output_path)
         
         # Create directory where to store the separated NEOWISE light curves
-        pathos = './neowise_lightcurves'
+        pathos = './NEOWISE_lightcurves'
         if not os.path.isdir(pathos):
             os.makedirs(pathos)
         
@@ -250,9 +254,45 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
             ra = round(table_clean['ra_01'][0], 2)
             dec = round(table_clean['dec_01'][0], 2)
             file_name = table_coord[source_name][(round(table_coord['ra'],2)==ra) & (round(table_coord['dec'],2)==dec)].iloc[0]
+            final_table['name'] = np.repeat(file_name, len(final_table))
             
             # Write the output table in the desired directory
             final_table.write(f'{output_path}/{file_name}.{suffix}', format=output_format, overwrite=True) 
+            
+    # Light curves from BlackGEM (https://www.eso.org/public/teles-instr/lasilla/blackgem/)
+    if ins == 'BLACKGEM':
+        # Create directory where to store the output files
+        output_path = './BLACKGEM_lightcurves_std'
+        if not os.path.isdir(output_path):
+            os.makedirs(output_path)
+            
+        # Loop for every light curve file in the lc directory    
+        for file in lc:
+            # Read light curve file
+            table = Table.read(f'{lc_directory}/{file}', format='ascii.csv')
+                
+            if len(table)>0:
+                # Clean the data removing points with high error on the magnitude or the flux, negative flux, 
+                # with high chi/N values or with background magnitude lower than the observation
+                table_clean = table[(table['SNR_OPT']>5) & (table['MAGERR_OPT']<1) & 
+                                        (table['LIMMAG_OPT']>table['MAG_OPT'])]
+                
+                if len(table_clean)>0:
+                    # Create and fill output table
+                    final_table = np.zeros(len(table_clean), dtype=mydtype)
+                    
+                    final_table['name'] = table_clean['SOURCE_ID']
+                    final_table['inst'] = ins
+                    final_table['filter'] = table_clean['filter']
+                    final_table['mjd'] = table_clean['mjd']
+                    final_table['mag'] = table_clean['MAG_OPT']
+                    final_table['magerr'] = table_clean['MAGERR_OPT']
+                        
+                    final_table = Table(final_table)
+                    file_name = table_clean['SOURCE_ID'][0]
+                        
+                    # Write the output table in the desired directory
+                    final_table.write(f'{output_path}/{file_name}.{suffix}', format=output_format, overwrite=True)
     
 
 #---------------------------------------------------------------------------------------------------------------#
@@ -305,15 +345,18 @@ def remove_outliers(y, method='median', n_std=3):
 #---------------------------------------------------------------------------------------------------------------#
 
 
-def plot_lightcurves(lc_dir, ref_mjd=58190.45, y_ax='mag', outliers='median', n_std=3, binsize=0):
+def plot_lightcurves(lc_dir, ref_mjd=58190.45, y_ax='mag', outliers='median', n_std=3, binsize=0, 
+                     rang=None, plot=False, savefig=True):
     '''
     Plots the light curves in the given directory. The light curve files MUST
-    be in the format given by the function create_lc_table.standard_table
+    be in the format given by the function lightcurve_utils.standard_table. 
+    Iterates the 'lightcurve_utils.plot_ind_lightcurves' for all the files in 
+    the given directory.
     
     Parameters
     ----------
-    lc_directory: string
-        Directory with the light curve data files.
+    file: string
+        File with the light curve data
     ref_mjd: float, optional
         Reference time given that the imput times are in MJD. The 58519.45
         that is setup coincides with the start of ZTF observations.
@@ -324,7 +367,65 @@ def plot_lightcurves(lc_dir, ref_mjd=58190.45, y_ax='mag', outliers='median', n_
         'iqr' (InterQuartile Range) or 'median' (None to not remove outliers).
     binsize: int, optional
         If greater than 0, bins the ligthcurve in bins with size binsize.
+    rang: tuple of floats, otional
+        The min and max values for the time range to plot. If None, all the 
+        data points are ploted
+    plot: boolean, optional
+        If True, shows the plots
+    safefig: boolean, optional
+        If True, safe the figure in the directory '{ins}_plots' (e.g. plots for
+        ZTF light curves would be stored in 'ZTF_plots')
+    
+    Returns
+    -------
+    None
 
+    '''
+    
+    lc_file = os.listdir(lc_dir)
+
+    if (rang is None) or (type(rang)==tuple):
+        for ide in lc_file:
+            plot_ind_lightcurves(f'{lc_dir}/{ide}', ref_mjd=ref_mjd, y_ax=y_ax, outliers=outliers, n_std=n_std, 
+                                 binsize=binsize, rang=rang, plot=plot, savefig=savefig)
+            
+    if rang=='single':
+        print('xdd')
+        
+        
+        
+#---------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------#
+
+
+def plot_ind_lightcurves(file_name, ref_mjd=58190.45, y_ax='mag', outliers='median', n_std=3, binsize=0, rang=None, plot=False, savefig=True):
+    '''
+    Plots the light curves of the given file. The light curve files MUST
+    be in the format given by the function lightcurve_utils.standard_table
+    
+    Parameters
+    ----------
+    file: string
+        File with the light curve data
+    ref_mjd: float, optional
+        Reference time given that the imput times are in MJD. The 58519.45
+        that is setup coincides with the start of ZTF observations.
+    y_ax: string, optional
+        If the y axis is in magnitude or flux. Eihter 'mag' or 'flux'.
+    outliers: string, optional
+        The manner in which the outliers in magnitude/flux are removed. Either
+        'iqr' (InterQuartile Range) or 'median' (None to not remove outliers).
+    binsize: int, optional
+        If greater than 0, bins the ligthcurve in bins with size binsize.
+    rang: tuple of floats, otional
+        The min and max values for the time range to plot. If None, all the 
+        data points are ploted
+    plot: boolean, optional
+        If True, shows the plot
+    safefig: boolean, optional
+        If True, safe the figure in the directory '{ins}_plots' (e.g. plots for
+        ZTF light curves would be stored in 'ZTF_plots')
+    
     Returns
     -------
     None
@@ -341,26 +442,39 @@ def plot_lightcurves(lc_dir, ref_mjd=58190.45, y_ax='mag', outliers='median', n_
         ('ATLAS', 'o'):'orange',
         ('ATLAS', 'c'):'cyan',
         ('NEOWISE', 'W1'):'darkred',
-        ('NEOWISE', 'W2'):'slategray'}
+        ('NEOWISE', 'W2'):'slategray',
+        ('BLACKGEM', 'u'):'purple',
+        ('BLACKGEM', 'g'):'skyblue',
+        ('BLACKGEM', 'r'):'orange',
+        ('BLACKGEM', 'i'):'firebrick',
+        ('BLACKGEM', 'z'):'sienna',
+        ('BLACKGEM', 'q'):'black'}
     
     plt.ioff()
-    lc_file = os.listdir(lc_dir)
-    data_files_names_only = [file_name.split(".csv")[0] for file_name in lc_file]
-    k=0 # for the names of the files
-    for ide in lc_file:
-        # Read individual file
-        file = Table.read(f'{lc_dir}/{ide}', format='ascii.csv')
-        if k==0:
-            ins = file['inst'][0]
-            out_path = f'{ins}_plots'
-            if not os.path.isdir(out_path):
-                os.makedirs(out_path)
-        
+    #data_files_names_only = file_name.split(".csv")[0]
+    # Read file
+    file = Table.read(file_name, format='ascii.csv')
+    if len(file)>4:
+        ins = file['inst'][0]
+        source_name = file['name'][0]
+        out_path = f'{ins}_plots'
+        if not os.path.isdir(out_path):
+            os.makedirs(out_path)
+            
+        if ins=='NEOWISE':
+            ms=6
+            cs=4
+            ew=4
+        else:
+            ms=3
+            cs=2
+            ew=2
+            
         # Create figure and axes
         fig, ax = plt.subplots(constrained_layout=True)
         fig.set_size_inches(9,5.5)
         ax.grid(alpha=0.5)
-        
+            
         # Plot the light curve for each filter
         available_filters=list(set(file['filter']))
         available_filters=sorted(available_filters)
@@ -368,42 +482,58 @@ def plot_lightcurves(lc_dir, ref_mjd=58190.45, y_ax='mag', outliers='median', n_
             if y_ax=='mag':
                 # Remove outliers
                 sigma = remove_outliers(file['mag'][file['filter']==band], method=outliers, n_std=n_std)
-                                
+                                    
                 # Select time, magnitudes and magnitude errors
                 t_observed = np.array(file["mjd"][file['filter']==band])[sigma]
                 y_observed = np.array(file['mag'][file['filter']==band])[sigma]
                 uncert = np.array(file["magerr"][file['filter']==band])[sigma]
-                
+                    
                 # Bin the data
                 if binsize > 0:
                     t_observed, y_observed, t_err, uncert =  phot_utils.bin_lightcurve(t_observed, y_observed, yerr=uncert, 
                                                                                        binsize=binsize, mode="average")
                 else:
                     t_err=None
-                
+                        
+                # Select only a set limited range of points to plot
+                if rang is not None:
+                    mask = (t_observed > rang[0]) & (t_observed < rang[1])
+                    t_observed = t_observed[mask]
+                    y_observed = y_observed[mask]
+                    uncert = uncert[mask]
+                    if binsize > 0:
+                        t_err = t_err[mask]
+                    
                 # Plot light curve
                 plot_color = color_dict.get((ins,band), 'black')
                 ax.errorbar(t_observed - ref_mjd, y_observed, xerr=t_err, yerr=uncert, color=plot_color, label=band, 
-                            fmt = "o", capsize=2, elinewidth=2, markersize=3, markeredgecolor='black', markeredgewidth=0.4)
+                            fmt = "o", capsize=cs, elinewidth=ew, markersize=ms, markeredgecolor='black', markeredgewidth=0.4)
                 ax.set_ylabel("Magnitude", family = "serif", fontsize = 16)
-                
+                    
             if y_ax=='flux':
                 # Remove outliers
                 sigma = remove_outliers(file['flux'][file['filter']==band], method=outliers)
-                
+                    
                 # Select time, magnitudes and magnitude errors
                 t_observed = np.array(file["mjd"][file['filter']==band])[sigma]
                 y_observed = np.array(file['flux'][file['filter']==band])[sigma]
                 uncert = np.array(file["fluxerr"][file['filter']==band])[sigma]
                 
+                # Select only a set limited range of points to plot
+                if rang is not None:
+                    mask = (t_observed > rang[0]) & (t_observed < rang[1])
+                    t_observed = t_observed[mask]
+                    y_observed = y_observed[mask]
+                    uncert = uncert[mask]
+                    
                 # Plot light curve
                 plot_color = color_dict.get((ins,band), 'black')
                 ax.errorbar(t_observed - ref_mjd, y_observed, yerr=uncert, color=plot_color, label=band, 
-                            fmt = "o", capsize=2, elinewidth=2, markersize=3, markeredgecolor='black', markeredgewidth=0.4)
+                            fmt = "o", capsize=cs, elinewidth=ew, markersize=ms, markeredgecolor='black', markeredgewidth=0.4)
                 ax.set_ylabel("Flux", family = "serif", fontsize = 16)
-                
-                
-        ax.set_title(f"Gaia DR3 {data_files_names_only[k]}", weight = "bold")
+                    
+                    
+        ax.set_title(f"Gaia DR3 {source_name}", weight = "bold")
         ax.set_xlabel(f"MJD - {ref_mjd} [days]", family = "serif", fontsize = 16)
         ax.tick_params(which='major', width=2, direction='out')
         ax.tick_params(which='major', length=7)
@@ -412,14 +542,14 @@ def plot_lightcurves(lc_dir, ref_mjd=58190.45, y_ax='mag', outliers='median', n_
         ax.minorticks_on()
         ax.invert_yaxis()
         xmin, xmax = ax.get_xlim()    
-    
+        
         ref_mjd = 58190.45
         def xconv(x):
             tyear = Time(x+ref_mjd, format="mjd")
             return tyear.jyear # days to years
         xmin2 = xconv(xmin)
         xmax2 = xconv(xmax)
-    
+        
         ay2 = plt.twiny()
         ay2.minorticks_on()
         ay2.tick_params(which='major', width=2, direction='out')
@@ -428,17 +558,25 @@ def plot_lightcurves(lc_dir, ref_mjd=58190.45, y_ax='mag', outliers='median', n_
         ay2.tick_params(labelsize = 16)
         ay2.set_xlim([xmin2, xmax2])
         ay2.set_xlabel('Year', fontsize=16)
-        
+        ay2.ticklabel_format(useOffset=False)
             
+                
         colors_for_filters = [color_dict.get((ins, filt), None) for filt in available_filters]
-            
+                
         ax.legend(loc = "upper right", ncols = len(available_filters), labelcolor = colors_for_filters, 
                   shadow = True, columnspacing = 0.8, handletextpad = 0.5, handlelength = 1, markerscale = 1.5, 
                   prop = {"weight" : "bold"})
-        plt.savefig(f'{out_path}/{ide}.png', bbox_inches = "tight", format = "png")
+        
+        if savefig == True:
+            plt.savefig(f'{out_path}/{source_name}.png', bbox_inches = "tight", format = "png")
+        
+        if plot == True:
+            plt.show()
+        
         plt.close()
-        #plt.show()
-        k += 1
+        
+    else:
+        print('Less than 5 points in the time series for source '+str(file['name'][0]))
         
 
 #---------------------------------------------------------------------------------------------------------------#
@@ -550,12 +688,14 @@ def vel_period_mass(m1, q, P, t_scale='days', e=0, plot=True):
 #---------------------------------------------------------------------------------------------------------------#
 
 
-def lc_folding(time, y, uncert, best_freq, cycles=1, plot=True):
+def lc_folding(name, time, y, uncert, best_freq, ax, cycles=1):
     '''
     Folds given light curve at a certain frequency.
     
     Parameters
     ----------
+    name: string
+        Name of the source (e.g. 'Gaia DR3 123')
     time: array of floats
         Array with the time values.
     y: array of floats
@@ -564,15 +704,13 @@ def lc_folding(time, y, uncert, best_freq, cycles=1, plot=True):
         Array with the magnitude errors.
     best_freq: float
         Value of the frequency to fold the light curve at.
+    ax: matplotlib axes
+        Where to plot the folded light curve
     cycle: float, optional
         How many phases are shown.
-    plot: boolean, optional
-        If set to True, shows the plot of the folded light curve.
-
     Returns
     -------
-    fig: matplotlib figure object
-        The generated figure, to save outside the function for example.
+    None
 
     '''
     
@@ -582,7 +720,8 @@ def lc_folding(time, y, uncert, best_freq, cycles=1, plot=True):
     # Variables to input into the FINKER script
     time = np.array(time)[sigma]
     y = np.array(y)[sigma]
-    uncert = np.array(uncert)[sigma]
+    if uncert is not None:
+        uncert = np.array(uncert)[sigma]
     
     # Set initial time
     min_index = np.argmax(y)
@@ -590,7 +729,7 @@ def lc_folding(time, y, uncert, best_freq, cycles=1, plot=True):
     
     
     # Plot folded light curve
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 6))
+    #fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 6))
     ax.errorbar((time * best_freq) % cycles, y,yerr=uncert, fmt='o', ecolor='black', capsize=2, elinewidth=2,
                  markersize=2, markeredgewidth=2, alpha=0.8, color='black',zorder=0)
     ax.set_xlabel('Phase', fontsize=18)
@@ -598,17 +737,16 @@ def lc_folding(time, y, uncert, best_freq, cycles=1, plot=True):
     ax.invert_yaxis()
     ax.tick_params(axis='both', which='major', labelsize=14)
     if ((24*60)/best_freq)<60:
-        ax.set_title(f'Frequency: {best_freq}; period: {(24*60) / best_freq:.3f}' + r'$ \, min$')
+        ax.set_title(f'{name}\nFreq: {best_freq}'+ '$d^{-1}$'+f'; period: {(24*60) / best_freq:.3f}' + r'$ \, min$',
+                     fontsize=18)
     elif ((((24*60)/best_freq)>60) and (((24*60)/best_freq)<(24*60))):
-        ax.set_title(f'Frequency: {best_freq}; period: {24 / best_freq:.3f}' + r'$ \, hr$')
+        ax.set_title(f'{name}\nFreq: {best_freq}'+ '$d^{-1}$'+f'; period: {24 / best_freq:.3f}' + r'$ \, hr$',
+                     fontsize=18)
     else:
-        ax.set_title(f'Frequency: {best_freq}; period: {1/best_freq:.3f}' + r'$ \, d$')
+        ax.set_title(f'{name}\nFreq: {best_freq}'+ '$d^{-1}$'+f'; period: {1/best_freq:.3f}' + r'$ \, d$',
+                     fontsize=18)
+   
         
-    if plot==True:
-        plt.tight_layout()
-        plt.show()
-        
-    return fig
     
 
 #---------------------------------------------------------------------------------------------------------------#

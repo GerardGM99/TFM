@@ -7,7 +7,7 @@ Created on Sun Feb 25 11:11:26 2024
 import numpy as np
 from uncertainties import ufloat
 
-def bin_lightcurve(x, y, yerr=None, mode="median", binsize=3):
+def bin_lightcurve(x, y, yerr=None, mode="average", binsize=3):
     '''
     Bins the lightcurve in bins of binsize.
     '''
@@ -57,11 +57,12 @@ def bin_lightcurve(x, y, yerr=None, mode="median", binsize=3):
             if mode == "median":
                 y_o.append(np.median(y[mask]))
                 if not yerr is None:
-                    yerr_o.append(np.sqrt( np.sum( (yerr[mask])**2 )))
+                    #yerr_o.append(np.sqrt(np.sum((yerr[mask])**2 ))/len(yerr[mask]))
+                    yerr_o.append(np.sqrt(np.sum((y[mask]-np.median(y[mask]))**2 ))/len(y[mask]))
             else:
                 fluxes = 10**(-0.4*y[mask])
                 fluxerr = fluxes - 10**(-0.4*(y[mask] + yerr[mask]))
-                fluxarr = np.array([ufloat(z) for z in zip(fluxes, fluxerr)])
+                #fluxarr = np.array([ufloat(z1,z2) for z1,z2 in zip(fluxes, fluxerr)])
                                
                 #Weighted mean:
                 #https://ned.ipac.caltech.edu/level5/Leo/Stats4_5.html
@@ -69,12 +70,12 @@ def bin_lightcurve(x, y, yerr=None, mode="median", binsize=3):
                 
                 #avgmag = -2.5 * np.log10(fluxarr.mean().n)
                 avgmag = -2.5 * np.log10(avgflux)
-                
-                #stdflux = np.sqrt(1./ np.nansum(1./fluxerr**2))
+                stdflux = np.sqrt(1./ np.nansum(1./fluxerr**2))
+                stdev = 2.5*stdflux/(avgflux*np.log(10))               
                 #stdev = np.abs(-2.5 * np.log10(fluxarr.mean().n) +2.5 * np.log10(fluxarr.mean().n + stdflux))
-
-                stdev_fl = np.std(fluxes[~np.isnan(fluxes)])
-                stdev = np.abs(-2.5 * np.log10(fluxarr.mean().n) +2.5 * np.log10(fluxarr.mean().n + stdev_fl))
+                
+                # stdev_fl = np.std(fluxes[~np.isnan(fluxes)])
+                # stdev = np.abs(-2.5 * np.log10(fluxarr.mean().n) +2.5 * np.log10(fluxarr.mean().n + stdev_fl))
                 
                 #print (yerr[mask], len(fluxerr), stdev)
                 
@@ -89,4 +90,4 @@ def bin_lightcurve(x, y, yerr=None, mode="median", binsize=3):
     y_o = np.array(y_o)
     yerr_o = np.array(yerr_o)
     
-    return x_o, y_o, xerr_o, yerr_o  
+    return x_o, y_o, xerr_o, yerr_o
