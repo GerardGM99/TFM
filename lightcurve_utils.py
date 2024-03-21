@@ -21,6 +21,7 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
     '''
     Given data from an specified catalog/instrument, creates a table with 
     relevant data for plotting light curves, with columns:
+        - name: name of the object (e.g. the Gaia DR3 ID)
         - inst: the catalog/instrument from which the data is taken
         - filter: the band used by the instrument
         - mjd: the Modified Julian Date of the observation
@@ -369,7 +370,8 @@ def plot_lightcurves(lc_dir, ref_mjd=58190.45, y_ax='mag', outliers='median', n_
         If greater than 0, bins the ligthcurve in bins with size binsize.
     rang: tuple of floats, otional
         The min and max values for the time range to plot. If None, all the 
-        data points are ploted
+        data points are ploted. If 'single' the plots are done around each
+        night with data points.
     plot: boolean, optional
         If True, shows the plots
     safefig: boolean, optional
@@ -390,8 +392,14 @@ def plot_lightcurves(lc_dir, ref_mjd=58190.45, y_ax='mag', outliers='median', n_
                                  binsize=binsize, rang=rang, plot=plot, savefig=savefig)
             
     if rang=='single':
-        print('xdd')
-        
+        for ide in lc_file:
+            file = Table.read(f'{lc_dir}/{ide}', format='ascii.csv')
+            nights = list(set(file['mjd'].astype(int)))
+            nights=sorted(nights)
+            ranges=[(x,x+1) for x in nights]
+            for t_min, t_max in ranges:
+                plot_ind_lightcurves(f'{lc_dir}/{ide}', ref_mjd=ref_mjd, y_ax=y_ax, outliers=outliers, n_std=n_std, 
+                                     binsize=binsize, rang=(t_min,t_max), plot=True, savefig=False)
         
         
 #---------------------------------------------------------------------------------------------------------------#
@@ -401,7 +409,9 @@ def plot_lightcurves(lc_dir, ref_mjd=58190.45, y_ax='mag', outliers='median', n_
 def plot_ind_lightcurves(file_name, ref_mjd=58190.45, y_ax='mag', outliers='median', n_std=3, binsize=0, rang=None, plot=False, savefig=True):
     '''
     Plots the light curves of the given file. The light curve files MUST
-    be in the format given by the function lightcurve_utils.standard_table
+    be in the format given by the function lightcurve_utils.standard_table.
+    If the data files has less than 5 points nothing is drawn and a message os
+    returned.
     
     Parameters
     ----------

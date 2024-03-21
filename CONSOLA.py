@@ -158,7 +158,7 @@ plt.show()
 
 #%%
 
-from lightcurve_utils import plot_ind_lightcurves
+#from lightcurve_utils import plot_ind_lightcurves
 from lightcurve_utils import plot_lightcurves
 
-plot_lightcurves('BLACKGEM_lightcurves_std')
+plot_lightcurves('BLACKGEM_lightcurves_std', rang='single', plot=True, savefig=False)
