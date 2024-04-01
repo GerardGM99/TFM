@@ -15,6 +15,7 @@ import phot_utils # my own
 import seaborn as sns
 from astropy.timeseries import LombScargle
 import astropy.units as u
+import coord_utils
 
 
 def standard_table(ins, lc_directory, asciicords, source_name, output_format='csv', suffix='csv'):
@@ -59,12 +60,13 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
              ("mag","<f4"), ("magerr","<f4"), ("flux","<f4"), ("fluxerr","<f4")]
     
     # Read directory with light curve files
-    if ins != 'NEOWISE':
+    if (ins != 'NEOWISE') and (ins != 'IRSA_ZTF'):
         lc = os.listdir(lc_directory)
     
     # Read the file with the ids and coordinates of the sources
     if ins != 'BLACKGEM':
-        table_coord = pd.read_csv(asciicords)
+        #table_coord = pd.read_csv(asciicords)
+        table_coord = Table.read(asciicords, format='ascii.csv')
     
     
     # Light curves from Zwicky Transient Facility [ZTF] (https://www.ztf.caltech.edu)
@@ -91,16 +93,67 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
             final_table['mag'] = table_clean['mag']
             final_table['magerr'] = table_clean['magerr']
             
-            final_table = Table(final_table)
+            # Xmatch with the asciicoords file
+            column_names = ['ra', 'dec', 'ra', 'dec', 'DR3_source_id']
+            xmatch_table = coord_utils.sky_xmatch(table_clean, table_coord, 1, column_names)
+            file_name = xmatch_table['Name'][0]
+            final_table['name'] = file_name
             
-            # Give a name to each file acording to the asciicords file which has the id and the coordinates of the sources
-            ra = round(table_clean['ra'][0], 2)
-            dec = round(table_clean['dec'][0], 2)
-            file_name = table_coord[source_name][(round(table_coord['ra'],2)==ra) & (round(table_coord['dec'],2)==dec)].iloc[0]
-            final_table['name'] = np.repeat(file_name, len(final_table))
+            final_table = Table(final_table)
             
             # Write the output table in the desired directory
             final_table.write(f'{output_path}/{file_name}.{suffix}', format=output_format, overwrite=True)
+            
+    
+    if ins == 'IRSA_ZTF':
+        # Create directory where to store the output files
+        output_path = './IRSA_ZTF_lightcurves_std'
+        if not os.path.isdir(output_path):
+            os.makedirs(output_path)
+        
+        # Create directory where to store the separated NEOWISE light curves
+        pathos = './IRSA_ZTF_lightcurves'
+        if not os.path.isdir(pathos):
+            os.makedirs(pathos)
+        
+        # Bulk downloading ZTF light curves from IRSA generates a single table with all the sources
+        # So we separate the sources in independent tables/files
+        irsa_ztf_bulk_file = pd.read_csv(lc_directory) # Read the file with all the sources' light curves
+        
+        # Clean the data (https://irsa.ipac.caltech.edu/data/ZTF/docs/ztf_extended_cautionary_notes.pdf)
+        irsa_ztf_bulk_file = irsa_ztf_bulk_file[(irsa_ztf_bulk_file['catflags']==0) & (irsa_ztf_bulk_file['chi']<4)]
+        irsa_ztf_bulk_file = Table.from_pandas(irsa_ztf_bulk_file)
+        
+        # Xmatch with the asciicoords file
+        column_names = ['ra', 'dec', 'ra', 'dec', 'DR3_source_id']
+        xmatch_table = coord_utils.sky_xmatch(irsa_ztf_bulk_file, table_coord, 1, column_names)
+        if len(set(xmatch_table['Name']))>1: #Not needed if there's only one source
+            for name in set(xmatch_table['Name']):
+                if name != '':
+                    separated_lc = xmatch_table[xmatch_table['Name']==name]
+                    separated_lc.write(f'{pathos}/{name}.csv', overwrite=True)
+        
+        # Loop for every light curve file in the lc directory
+        lc = os.listdir(pathos)
+        for file in lc:
+            # Read light curve file
+            table_clean = Table.read(f'{pathos}/{file}', format='ascii.csv')
+                        
+            # Create and fill output table
+            final_table = np.zeros(len(table_clean), dtype=mydtype)
+            
+            final_table['inst'] = ins
+            final_table['filter'] = table_clean['filtercode']
+            final_table['mjd'] = table_clean['mjd']
+            final_table['mag'] = table_clean['mag']
+            final_table['magerr'] = table_clean['magerr']
+            final_table['name'] = table_clean['Name']
+            
+            final_table = Table(final_table)
+            
+            # Write the output table in the desired directory
+            name = final_table['name'][0]
+            final_table.write(f'{output_path}/{name}.{suffix}', format=output_format, overwrite=True)
             
     
     # Light curves from All-Sky Automated Surveey for Supernovae [ASAS-SN] (https://asas-sn.osu.edu)   
@@ -129,11 +182,11 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
               final_table['flux'] = table_clean['flux']
               final_table['fluxerr'] = table_clean['flux_err']
               
-              final_table = Table(final_table)
-              
               # Name of the file, the same as the imput lc file because the downloaded tables from asas-sn don't have coordinates
               file_name_only = file.split('.csv')[0]
               final_table['name'] = np.repeat(file_name_only, len(final_table))
+              
+              final_table = Table(final_table)
               
               # Write the output table in the desired directory
               final_table.write(f'{output_path}/{file_name_only}.{suffix}', format=output_format, overwrite=True)
@@ -162,19 +215,24 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
             final_table['inst'] = ins
             final_table['filter'] = table_clean['F']
             final_table['mjd'] = table_clean['##MJD']
-            #final_table['mjderr'] = 
             final_table['mag'] = table_clean['m']
             final_table['magerr'] = table_clean['dm']
             final_table['flux'] = table_clean['uJy']
             final_table['fluxerr'] = table_clean['duJy']
+                                   
+            # Give a name to each file acording to the asciicords file which has the id and the coordinates of the sources
+            # ra = round(table_clean['RA'][0], 2)
+            # dec = round(table_clean['Dec'][0], 2)
+            # file_name = table_coord[source_name][(round(table_coord['ra'],2)==ra) & (round(table_coord['dec'],2)==dec)].iloc[0]
+            # final_table['name'] = np.repeat(file_name, len(final_table))
+            
+            # Xmatch with the asciicoords file
+            column_names = ['RA', 'Dec', 'ra', 'dec', 'DR3_source_id']
+            xmatch_table = coord_utils.sky_xmatch(table_clean, table_coord, 1, column_names)
+            file_name = xmatch_table['Name'][0]
+            final_table['name'] = file_name
             
             final_table = Table(final_table)
-            
-            # Give a name to each file acording to the asciicords file which has the id and the coordinates of the sources
-            ra = round(table_clean['RA'][0], 2)
-            dec = round(table_clean['Dec'][0], 2)
-            file_name = table_coord[source_name][(round(table_coord['ra'],2)==ra) & (round(table_coord['dec'],2)==dec)].iloc[0]
-            final_table['name'] = np.repeat(file_name, len(final_table))
             
             # Write the output table in the desired directory
             final_table.write(f'{output_path}/{file_name}.{suffix}', format=output_format, overwrite=True)
@@ -190,27 +248,31 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
         pathos = './NEOWISE_lightcurves'
         if not os.path.isdir(pathos):
             os.makedirs(pathos)
-        
+                        
         # Bulk downloading NEOWISE light curves from IRSA generates a single table with all the sources
         # So we separate the sources in independent tables/files
-        neowise_bulk_file = pd.read_csv(lc_directory) # Read the file with all the sources' light curves
-        ra_list = neowise_bulk_file['ra_01'].unique() 
-        dec_list = neowise_bulk_file['dec_01'].unique()
-        if len(ra_list)>1: #Not needed if there's only one source
-            for RA,DEC in zip(ra_list,dec_list):
-                # Get the name/id of the source for the individual file names
-                ra = round(RA, 2)
-                dec = round(DEC, 2)
-                file_name = table_coord[source_name][(round(table_coord['ra'],2)==ra) & (round(table_coord['dec'],2)==dec)].iloc[0]
-                # Create dataframe with an individual light curve and save it
-                separated_lc = neowise_bulk_file[neowise_bulk_file['ra_01']==RA]
-                separated_lc.to_csv(f'{pathos}/{file_name}.csv', mode='w')
+        neowise_bulk_file = pd.read_csv(lc_directory)
+        
+        # Clean the data using the signal to noise ratio and chi^2
+        # (https://wise2.ipac.caltech.edu/docs/release/neowise/expsup/sec2_1a.html)        
+        neowise_bulk_file = neowise_bulk_file[(neowise_bulk_file['w1snr']>2) & (neowise_bulk_file['w2snr']>2) &
+                                              (neowise_bulk_file['w1rchi2']<150) & (neowise_bulk_file['w2rchi2']<150)]
+        neowise_bulk_file = Table.from_pandas(neowise_bulk_file)
+        
+        # Xmatch with the asciicoords file
+        column_names = ['ra_01', 'dec_01', 'ra', 'dec', 'DR3_source_id']
+        xmatch_table = coord_utils.sky_xmatch(neowise_bulk_file, table_coord, 1, column_names)
+        if len(set(xmatch_table['Name']))>1: #Not needed if there's only one source
+            for name in set(xmatch_table['Name']):
+                if name != '':
+                    separated_lc = xmatch_table[xmatch_table['Name']==name]
+                    separated_lc.write(f'{pathos}/{name}.csv', overwrite=True)
         
         # Loop for every light curve file in the lc directory
         lc = os.listdir(pathos)
         for file in lc:
             # Read light curve file
-            table = Table.read(f'{pathos}/{file}', format='ascii.csv')
+            table_clean = Table.read(f'{pathos}/{file}', format='ascii.csv')
             
             # Clean the data using cc_flags flag (Contamination and confusion flags) and ph_qual flag (Photometric quality flag)
             # (https://wise2.ipac.caltech.edu/docs/release/neowise/expsup/sec2_1a.html)
@@ -219,12 +281,6 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
             # table_clean = table[(table['cc_flags']=='0000')]
             # ph_qual_mask = np.array([(qual in ph_qual_list) for qual in table_clean['ph_qual']])
             # table_clean = table_clean[ph_qual_mask]
-            
-            # Clean the data using the signatl to noise ratio and chi^2
-            # (https://wise2.ipac.caltech.edu/docs/release/neowise/expsup/sec2_1a.html)
-            noise_mask = np.array( (table['w1snr']>2) * (table['w2snr']>2) * 
-                                  (table['w1rchi2']<150) * (table['w2rchi2']<150) )
-            table_clean = table[noise_mask]
             
             # Separate the two filters, W1 and W2           
             time_obs = table_clean['mjd']
@@ -249,13 +305,10 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
             final_table['mag'][len(mag_obs_W1):] =  mag_obs_W2
             final_table['magerr'][len(mag_obs_W1):] = mag_obs_err_W2
             
-            final_table = Table(final_table)
+            file_name = table_clean['Name'][0]
+            final_table['name'] = file_name
             
-            # Give a name to each file acording to the asciicords file which has the id and the coordinates of the sources
-            ra = round(table_clean['ra_01'][0], 2)
-            dec = round(table_clean['dec_01'][0], 2)
-            file_name = table_coord[source_name][(round(table_coord['ra'],2)==ra) & (round(table_coord['dec'],2)==dec)].iloc[0]
-            final_table['name'] = np.repeat(file_name, len(final_table))
+            final_table = Table(final_table)
             
             # Write the output table in the desired directory
             final_table.write(f'{output_path}/{file_name}.{suffix}', format=output_format, overwrite=True) 
@@ -447,6 +500,9 @@ def plot_ind_lightcurves(file_name, ref_mjd=58190.45, y_ax='mag', outliers='medi
         ('ZTF', 'zg'):'g',
         ('ZTF', 'zr'):'r',
         ('ZTF', 'zi'):'gold',
+        ('IRSA_ZTF', 'zg'):'g',
+        ('IRSA_ZTF', 'zr'):'r',
+        ('IRSA_ZTF', 'zi'):'gold',
         ('ASAS_SN', 'V'):'darkcyan',
         ('ASAS_SN', 'g'):'blue',
         ('ATLAS', 'o'):'orange',

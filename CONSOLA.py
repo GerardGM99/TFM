@@ -8,13 +8,13 @@ Created on Sun Feb 25 13:15:25 2024
 
 from lightcurve_utils import standard_table
 
-standard_table('ZTF', 'ZTF_lightcurves', 'data/70_targets.csv', 'DR3_source_id')
+standard_table('NEOWISE', 'data/table_irsa_catalog_search_results_NEOWISE.csv', 'data/70_targets.csv', 'DR3_source_id')
 
 #%%
 
 from lightcurve_utils import plot_lightcurves
 
-plot_lightcurves('BLACKGEM_lightcurves_std')
+plot_lightcurves('IRSA_ZTF_lightcurves_std')
 
 #%%
 from Finker_script import use_finker
@@ -162,3 +162,15 @@ plt.show()
 from lightcurve_utils import plot_lightcurves
 
 plot_lightcurves('BLACKGEM_lightcurves_std', rang='single', plot=True, savefig=False)
+
+#%%
+
+from finder_chart import draw_image
+import pandas as pd
+import coord_utils
+
+asciicords = pd.read_csv('data/70_targets.csv')
+for ra, dec, name in zip(asciicords['ra'], asciicords['dec'], asciicords['DR3_source_id']):
+    print(f'Starting with {name}')
+    draw_image(ra, dec, name, 20/3600, directory='cool_plots/images/Nadia', ext='png',save=True,plot=False)
+    coord_utils.draw_image(ra, dec, name, 160, directory='cool_plots/images/Color', ext='png',save=True,plot=False)
