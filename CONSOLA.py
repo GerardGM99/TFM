@@ -174,3 +174,10 @@ for ra, dec, name in zip(asciicords['ra'], asciicords['dec'], asciicords['DR3_so
     print(f'Starting with {name}')
     draw_image(ra, dec, name, 20/3600, directory='cool_plots/images/Nadia', ext='png',save=True,plot=False)
     coord_utils.draw_image(ra, dec, name, 160, directory='cool_plots/images/Color', ext='png',save=True,plot=False)
+     
+#%%
+
+import spectra_utils as su
+
+_,_,_,_ = su.model_spectral_lines([3500, 7000], {'Ha':6563}, [-0.8], 1000, 7000, 50, cont=True)
+#su.rv_crosscorr_err(n_boot, wl_range, n_points, lines, line_strenght, R, T, SNR)

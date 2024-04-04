@@ -66,7 +66,7 @@ def sig_T(T, wl):
 
 
 def line_width(sig_int, wl, R):
-    sig_R = wl/(2*R) 
+    sig_R = wl/(2*np.sqrt(2*np.log(2))*R)
     sigma = np.sqrt(sig_int**2 + sig_R**2)
     return sigma
 
@@ -76,9 +76,9 @@ def gaussian_line(height, wl, sig, wl_range, n_points):
     y = g1(x)
     return x, y
 
-def add_noise(y, SNR):
-    noise = np.random.normal(0., 1/SNR, y.shape)
-    return y + noise
+def add_noise(s, SNR):
+    noise = np.random.normal(0., np.mean(s)/SNR, s.shape)
+    return s + noise
 
 # Shifted line (due to radial velocity)
 def rv_shift(wl, v):
@@ -91,8 +91,19 @@ def blackbody_radiation(wavelength, T):
     intensity = (2 * h * c**2) / (wavelength**5) * (1 / (np.exp((h * c) / (wavelength * k * T)) - 1))
     return intensity
 
-def model_spectral_lines(wl_range, n_points, lines, line_strenght, R, T, SNR, rv=[0], plot=True, cont=False):
+def model_spectral_lines(wl_range, lines, line_strenght, R, T, SNR, pix_size=None, rv=[0], plot=True, cont=False):
+
+    #I NEED TO ADD ALL THE PARAMETERS (LOGG, METALLICITY, ALPHA)    
     
+    # Pixel size & sample points
+    if pix_size is not None:
+        n_points = round((wl_range[1]-wl_range[0])/pix_size)
+    else:
+        central_wl = (wl_range[0]+wl_range[1])/2.
+        res_element = central_wl/R
+        pix_size = res_element/2. # We assume 2 pixels per resolution element
+        n_points = round((wl_range[1]-wl_range[0])/pix_size)
+
     # Create the template (only if rv is not 0; if rv=0, the tamplate spectra
     # is the black body spectrum at temperature T)
     if rv != [0]:
@@ -117,7 +128,6 @@ def model_spectral_lines(wl_range, n_points, lines, line_strenght, R, T, SNR, rv
         spectra.append(dy1)
         
     dy = sum(spectra) #sum for each velocity
-    dy = add_noise(dy, SNR)
     
     # Adds blackbody spectrum at temperature T
     if cont:
@@ -125,13 +135,17 @@ def model_spectral_lines(wl_range, n_points, lines, line_strenght, R, T, SNR, rv
         flux = blackbody_radiation(wavelenghts, T)
         dy += flux/np.mean(flux)
         ty += flux/np.mean(flux)
+    else:
+        dy += 1
+        ty += 1
     
+    dy = add_noise(dy, SNR)
     
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color'] #Colors for the axvlines
     color_cycle = iter(colors)
     # Plot template and data
     if plot:
-        plt.figure(figsize=(12,7))
+        plt.figure(figsize=(14,7))
         plt.title(f'Resolution: {R}; Temperature: {T} K, SNR: {SNR}, RVs: {rv} km/s')
         plt.plot(dx, dy, label='Data')
         for line_v, line_k in zip(lines.values(), lines.keys()):
@@ -139,7 +153,7 @@ def model_spectral_lines(wl_range, n_points, lines, line_strenght, R, T, SNR, rv
             plt.axvline(line_v, label=line_k, linestyle='--', alpha=0.7, color=color)
         if rv != [0]:
             plt.plot(tx, ty, ls='dotted', label='Template', color='k')
-        else:
+        elif (rv==[0])&(cont is True):
             plt.plot(tx, ty, ls='dotted', label='Blackbody', color='k')
         plt.xlabel('Spectral Axis') 
         plt.ylabel('Flux Axis')
