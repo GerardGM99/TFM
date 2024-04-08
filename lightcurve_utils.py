@@ -884,6 +884,32 @@ def lc_combined(name, t_list, y_list, y_list_err, filt_list, best_freq, t_start=
             ax.text(0.02,0.95, filt_list[i], fontsize=18, transform = trans, style='italic')
         
     gs.update(hspace=0)
+    
+    
+def bulk_combine(name, instruments, best_freq):
+    times=[]
+    mags=[]
+    mag_errs=[]
+    filts=[]
+    for ins in instruments:
+        table = pd.read_csv('{ins}_lightcurves_std/{name}.csv')
+        bands=list(set(table['filter']))
+        for i, band in enumerate(bands):
+            t=table['mjd'].loc[table['filter']==band]
+            if 
+            y=table['mag'].loc[table['filter']==band]
+            yerr=table['magerr'].loc[table['filter']==band]
+            filt = table['inst'][0] + ', ' + band
+            times.append(t)
+            mags.append(y)
+            mag_errs.append(yerr)
+            filts.append(filt)
+
+    lc_combined('Gaia DR3 2060841448854265216', times, mags, mag_errs, filts, 
+                best_freq, t_start=t_start)
+
+    plt.tight_layout()
+    plt.show()
 
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#
