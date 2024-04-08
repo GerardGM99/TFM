@@ -19,13 +19,13 @@ plot_lightcurves('IRSA_ZTF_lightcurves_std')
 #%%
 from Finker_script import use_finker
     
-lc_directory='test_dir'
-use_finker(lc_directory, freq_range=86400, freq_step=250000)
+lc_directory='IRSA_ZTF_lightcurves_std'
+tab = use_finker(lc_directory, freq_range=100, freq_step=250000)
 
-instru = ['ZTF']
-for ins in instru:
-    lc_directory=f'{ins}_lightcurves_std'
-    use_finker(lc_directory, freq_range=100, freq_step=250000)
+# instru = ['ZTF']
+# for ins in instru:
+#     lc_directory=f'{ins}_lightcurves_std'
+#     use_finker(lc_directory, freq_range=100, freq_step=250000)
 
 #%%
 from lightcurve_utils import vel_period_mass
@@ -45,31 +45,46 @@ for  P, mass in zip(period,m1):
     vel_period_mass(m1, q, P)
     
 #%%
-from lightcurve_utils import lc_folding
+from lightcurve_utils import lc_folding, lc_combined
 import pandas as pd
 import matplotlib.pyplot as plt
 
-table = pd.read_csv('ztf_lightcurves_std/2006088484204609408.csv')
-band=list(set(table['filter']))[0]
-t1= table['mjd'].loc[table['filter']==band]
-y1=table['mag'].loc[table['filter']==band]
-yerr1=table['magerr'].loc[table['filter']==band]
+table = pd.read_csv('irsa_ztf_lightcurves_std/2060841448854265216.csv')
+band1=list(set(table['filter']))[0]
+t1= table['mjd'].loc[table['filter']==band1]
+y1=table['mag'].loc[table['filter']==band1]
+yerr1=table['magerr'].loc[table['filter']==band1]
+min_index = np.argmax(y1)
+t_start = t1[min_index]
+filt1 = table['inst'][0] + ', ' + band1
 
-table = pd.read_csv('ztf_lightcurves_std/460686648965862528.csv')
-band=list(set(table['filter']))[1]
-t2= table['mjd'].loc[table['filter']==band]
-y2=table['mag'].loc[table['filter']==band]
-yerr2=table['magerr'].loc[table['filter']==band]
+# table = pd.read_csv('ztf_lightcurves_std/460686648965862528.csv')
+table = pd.read_csv('irsa_ztf_lightcurves_std/2060841448854265216.csv')
+band2=list(set(table['filter']))[1]
+t2= table['mjd'].loc[table['filter']==band2]
+y2=table['mag'].loc[table['filter']==band2]
+yerr2=table['magerr'].loc[table['filter']==band2]
+filt2 = table['inst'][0] + ', ' + band2
+
+# table = pd.read_csv('ztf_lightcurves_std/460686648965862528.csv')
+table = pd.read_csv('irsa_ztf_lightcurves_std/2060841448854265216.csv')
+band3=list(set(table['filter']))[2]
+t3= table['mjd'].loc[table['filter']==band3]
+y3=table['mag'].loc[table['filter']==band3]
+yerr3=table['magerr'].loc[table['filter']==band3]
+filt3 = table['inst'][0] + ', ' + band3
 
 # frequencies = [1/52.7027]
 # for best_freq in frequencies:
 #     lc_folding(t, y, yerr, best_freq)
 
-fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(16, 6))
+# fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(16, 6))
 
-lc_folding('Gaia DR3 2006088484204609408', t1, y1, yerr1, 0.385202, axs[0], cycles=2)
-lc_folding('Gaia DR3 460686648965862528', t2, y2, yerr2, 3.190962, axs[1], cycles=2)
+# lc_folding('Gaia DR3 2006088484204609408', t1, y1, yerr1, 0.385202, axs[0], cycles=2)
+# lc_folding('Gaia DR3 460686648965862528', t2, y2, yerr2, 3.190962, axs[1], cycles=2)
 
+lc_combined('Gaia DR3 2060841448854265216', [t1, t2, t3], [y1, y2, y3], [yerr1, yerr2, yerr3], [filt1, filt2, filt3], 
+            0.016517, t_start=t_start)
 
 plt.tight_layout()
 plt.show()
@@ -179,5 +194,24 @@ for ra, dec, name in zip(asciicords['ra'], asciicords['dec'], asciicords['DR3_so
 
 import spectra_utils as su
 
-_,_,_,_ = su.model_spectral_lines([3500, 7000], {'Ha':6563}, [-0.8], 1000, 7000, 50, cont=True)
+_,_,_,_ = su.model_spectral_lines([6540, 6590], {'Ha':6563}, [0.8], 25000, 7000, 20, cont=True, rv=[-20, 20])
+_,_,_,_ = su.model_spectral_lines([4000, 7000], {'Ha':6563}, [0.8], 25000, 7000, 20, cont=True, rv=[-20, 20])
 #su.rv_crosscorr_err(n_boot, wl_range, n_points, lines, line_strenght, R, T, SNR)
+
+#%%
+
+import coord_utils as cu
+from astropy.table import Table
+
+# random = Table.read('data/random_sources-result.vot', format="votable")
+# random = random.to_pandas()
+
+# mysources = Table.read('data/70_targets_coord.vot', format="votable")
+# mysources = mysources.to_pandas()
+
+cu.sky_plot(random['ra'], random['dec'], projection=None, frame='icrs', density=True, label='bulk', s=10, cmap='inferno')
+ax1 = plt.gca()
+cu.sky_plot(mysources['ra'], mysources['dec'],projection=None, frame='icrs', c='w',marker='*',s=200, label='Test', ax=ax1)
+
+plt.tight_layout()
+plt.show()

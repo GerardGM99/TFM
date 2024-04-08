@@ -218,6 +218,33 @@ def getgrayim(ra, dec, size=240, output_size=None, filter="g", format="jpg"):
     return im
 
 def draw_image(ra, dec, name, size, directory='.', ext="pdf", plot=True, save=False):
+    '''
+    Plots the color cutout form Pan-STARRS.
+
+    Parameters
+    ----------
+    ra : float
+        Right ascension of the center of the cutout.
+    dec : float
+        Declination of the center of the cutout.
+    name : string
+        Name to give to the image.
+    size : float
+        Size of the image in pixels.
+    directory : string, optional
+        Directory where to save the image. The default is '.'.
+    ext : string, optional
+        Extension for the saved image. The default is "pdf".
+    plot : bool, optional
+        If True, show the plot. The default is True.
+    save : bool, optional
+        If True, save the plot. The default is False.
+
+    Returns
+    -------
+    None.
+
+    '''
     
     if dec>-30:
     # color image
@@ -259,7 +286,7 @@ def draw_image(ra, dec, name, size, directory='.', ext="pdf", plot=True, save=Fa
         ax.set_xticklabels([ticks[0].ra.to_string(unit=u.hourangle, sep=['$^h$','$^m$','$^s$'], precision=2, pad=True), 
                             '%.2f$^s$'%(ticks[1].ra.hms[2]), '%.2f$^s$'%(ticks[2].ra.hms[2]), '%.2f$^s$'%(ticks[3].ra.hms[2])])
         ax.set_yticklabels(['%.2f"'%(ticks[0].dec.dms[2]), '%.2f"'%(ticks[1].dec.dms[2]), '%.2f"'%(ticks[2].dec.dms[2]),
-                            ticks[3].dec.to_string(sep=['$^\circ$', '\' ', '"'], precision=2, alwayssign=True, pad=True)])
+                            ticks[3].dec.to_string(sep=[r'$^\circ$', '\' ', '"'], precision=2, alwayssign=True, pad=True)])
         ax.set_xlim(0, size)
         ax.set_ylim(size, 0)
     
@@ -283,12 +310,34 @@ def draw_image(ra, dec, name, size, directory='.', ext="pdf", plot=True, save=Fa
 
 
 #Function to plot sources as a scatter plot with density
-def density_scatter( x , y, sort = True, bins = 20, **kwargs )   :
-    """
-    Scatter plot colored by 2d histogram
-    """
-    #if ax is None :
-        #fig , ax = plt.subplots()
+def density_scatter( x , y, sort = True, bins = 20, ax=None, **kwargs )   :
+    '''
+    Scatter plot colored by 2d histogram.
+
+    Parameters
+    ----------
+    x : list of floats
+        X axis values.
+    y : list of floats
+        Y axis values.
+    sort : bool, optional
+        If True, sort the points by density, so that the densest points are 
+        plotted last. The default is True.
+    bins : float, optional
+        Number of bins for the np.histogram2d. The default is 20.
+    ax : Axes object (matplotlib), optional
+        Axes where to draw the density plot. The default is None.
+    **kwargs :
+        Additional parameters for matplotlib.pyplot.scatter.
+
+    Returns
+    -------
+    out : Scatter plot (matplotlib)
+        The density scatter plot.
+
+    '''
+    if ax is None :
+        fig , ax = plt.subplots()
     data , x_e, y_e = np.histogram2d( x, y, bins = bins, density = False )
     z = interpn( ( 0.5*(x_e[1:] + x_e[:-1]) , 0.5*(y_e[1:]+y_e[:-1]) ) , data , np.vstack([x,y]).T , method = "splinef2d", bounds_error = False)
 
@@ -300,7 +349,7 @@ def density_scatter( x , y, sort = True, bins = 20, **kwargs )   :
         idx = z.argsort()
         x, y, z = x[idx], y[idx], z[idx]
 
-    out = plt.scatter( x, y, c=z, **kwargs )
+    out = ax.scatter( x, y, c=z, **kwargs )
     #plt.colorbar(label = "Sources per bin", location="left")
         
     #norm = Normalize(vmin = np.min(z), vmax = np.max(z))
@@ -314,69 +363,95 @@ def density_scatter( x , y, sort = True, bins = 20, **kwargs )   :
 #---------------------------------------------------------------------------------------------------------------#
 
 
-def sky_plot():
-    plt.figure(figsize=(12, 8))
-    plt.subplot(projection="aitoff")
-    
-    coords = SkyCoord(frame = "galactic", l=random['l'], b=random['b'], unit='degree')
-    l = -coords.l.wrap_at(180 * u.deg).radian
-    b = coords.b.radian
-    #plt.scatter(l, b, c="b", s=2, alpha=0.3, label="Random Gaia sources")
-    density_scatter(l, b, bins = 500, s = 2, alpha=0.5, cmap = "plasma")
-    #plt.colorbar(orientation="horizontal", pad=0.2)
-    
-    coords = SkyCoord(l=mysources['l'][mysources['phot_g_mean_mag']<13], 
-                      b=mysources['b'][mysources['phot_g_mean_mag']<13], 
-                      unit='degree', frame = "galactic")
-    l = -coords.l.wrap_at(180 * u.deg).radian
-    b = coords.b.radian
-    plt.scatter(l, b, c="w", marker="*", edgecolors='k', s=220, label="Mag<13")
-    
-    
-    # Convert the longitude values in right ascension hours
-    plt.xticks(ticks=np.radians([-150, -120, -90, -60, -30, 0, \
-                                  30, 60, 90, 120, 150]),
-                labels=['10h', '8h', '6h', '4h', '2h', '0h', \
-                        '22h', '20h', '18h', '16h', '14h'])
-    
-    # Plot the labels and the title
-    plt.title("Skymap in galactic coordinates" , x = 0.5, y = 1.1, fontsize=19)
-    plt.xlabel('l')
-    plt.ylabel('b')
-    
-    # Grid and legend
-    plt.legend(loc='upper right', fontsize=12, bbox_to_anchor=(1,1.11))
-    plt.grid(True)
-    
-    plt.show()
-    plt.close()
+def sky_plot(x, y, frame='galactic', projection='aitoff', density=False, ax=None, **kwargs):
+    '''
+    Coordinate plot
 
----
-plt.figure(figsize=(12,8))
+    Parameters
+    ----------
+    x : list of floats
+        Coordinates of the x axis (ra or l).
+    y : list of floats
+        Coordinates of the y axis (dec or b)..
+    frame : string, optional
+        Frame of the (x,y) coordinates. The 'galactic' frame has (l,b) 
+        coordinates, the 'icrs' frame has (ra, dec) coordinates. The default 
+        is 'galactic'.
+    projection : string, optional
+        Subplot projection. The default is 'aitoff'.
+    density : bool, optional
+        If True, a density scatter plot is shown, using the 'density_scatter'
+        function. The default is False.
+    ax : Axes object (matplotlib), optional
+        Axes where to draw the density plot. If None, a new axes is created. 
+        The default is None.
+    **kwargs :
+        Additional parameters for matplotlib.pyplot.scatter.
 
-#Labels and title
-plt.title("Skymap in ICRS", fontsize=19)
-plt.xlabel("ra (deg)", fontsize = 19)
-plt.ylabel("dec (deg)", fontsize = 19)
-plt.xticks(fontsize = 16)
-plt.yticks(fontsize = 16)
+    Returns
+    -------
+    None.
 
+    '''
+    if ax is None:
+        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8), subplot_kw={'projection': projection})
+        
+    if projection == 'aitoff':        
+        coords = SkyCoord(x, y, unit='degree', frame=frame)
+        if frame == 'galactic':
+            x = -coords.l.wrap_at(180 * u.deg).radian
+            y = coords.b.radian
+        elif frame == 'icrs':
+            x = coords.ra.wrap_at(180 * u.deg).radian
+            y = coords.dec.radian
+        
+        if density is True:
+            density_scatter(x, y, bins = 500, ax=ax, **kwargs)
+        else:
+            ax.scatter(x, y, **kwargs)
+        
+        if frame == 'galactic':
+            # Convert the longitude values in right ascension hours
+            ax.set_xticks(ticks=np.radians([-150, -120, -90, -60, -30, 0, \
+                                          30, 60, 90, 120, 150]),
+                        labels=['10h', '8h', '6h', '4h', '2h', '0h', \
+                                '22h', '20h', '18h', '16h', '14h'])
+            
+            # Plot the labels and the title
+            ax.set_title("Skymap in galactic coordinates" , x = 0.5, y = 1.1, fontsize=19)
+            ax.set_xlabel('l')
+            ax.set_ylabel('b')  
+        elif frame == 'icrs':
+            # Plot the labels and the title
+            ax.set_title("Skymap in ICRS" , x = 0.5, y = 1.1, fontsize=19)
+            ax.set_xlabel('ra')
+            ax.set_ylabel('dec')
+        
+        
+        # Grid and legend
+        ax.legend(loc='upper right', fontsize=12, bbox_to_anchor=(1,1.11))
+        ax.grid(True)
+    
+    else:
+        if density is True:
+            plot = density_scatter(x, y, bins = 500, ax=ax, **kwargs)
+            cb = plt.colorbar(plot, pad = 0.037, ax=ax)
+            cb.set_label("Sources per bin", fontsize = 19, labelpad = -75)
+        else:
+            ax.scatter(x, y, **kwargs)
+            
+        if frame == 'galactic':
+            #Labels and title
+            ax.set_title("Skymap in galactic coordinates" , fontsize=19)
+            ax.set_xlabel('l (deg)', fontsize = 19)
+            ax.set_ylabel('b (deg)', fontsize = 19)  
+        elif frame == 'icrs':
+            #Labels and title
+            ax.set_title("Skymap in ICRS", fontsize=19)
+            ax.set_xlabel("ra (deg)", fontsize = 19)
+            ax.set_ylabel("dec (deg)", fontsize = 19)
 
-density_scatter(random['ra'], random['dec'], bins = 500, s = 2, alpha=0.5, cmap = "plasma")
-cb = plt.colorbar(pad = 0.037)
-cb.set_label("Sources per bin", fontsize = 19, labelpad = -75)
-
-
-plt.scatter(mysources['ra'][mysources['phot_g_mean_mag']<13], 
-            mysources['dec'][mysources['phot_g_mean_mag']<13], 
-            c="w", marker="*", edgecolors='k', s=220, label="Mag<13")
-plt.scatter(mysources['ra'][(mysources['phot_g_mean_mag']>13)&(mysources['phot_g_mean_mag']<15)], 
-            mysources['dec'][(mysources['phot_g_mean_mag']>13)&(mysources['phot_g_mean_mag']<15)], 
-            c="w", marker="*", edgecolors='k', s=120, label="13<Mag<15")
-plt.scatter(mysources['ra'][mysources['phot_g_mean_mag']>15], 
-            mysources['dec'][mysources['phot_g_mean_mag']>15], 
-            c="w", marker="*", edgecolors='k', s=40, label="Mag>15")
-
-plt.legend(loc='upper center', fontsize=12, shadow=True)
-plt.show()
-plt.close()
+        ax.tick_params(axis='both', which='major', labelsize=16)
+        
+        ax.legend(loc='upper center', fontsize=12, shadow=True)
+        ax.grid(True)

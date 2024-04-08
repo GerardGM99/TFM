@@ -11,6 +11,8 @@ from astropy.time import Time
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import matplotlib.transforms as transforms
 import phot_utils # my own
 import seaborn as sns
 from astropy.timeseries import LombScargle
@@ -461,7 +463,7 @@ def plot_lightcurves(lc_dir, ref_mjd=58190.45, y_ax='mag', outliers='median', n_
 
 def plot_ind_lightcurves(file_name, ref_mjd=58190.45, y_ax='mag', outliers='median', n_std=3, binsize=0, rang=None, plot=False, savefig=True):
     '''
-    Plots the light curves of the given file. The light curve files MUST
+    Plots the light curve of the given file. The light curve files MUST
     be in the format given by the function lightcurve_utils.standard_table.
     If the data files has less than 5 points nothing is drawn and a message os
     returned.
@@ -754,26 +756,29 @@ def vel_period_mass(m1, q, P, t_scale='days', e=0, plot=True):
 #---------------------------------------------------------------------------------------------------------------#
 
 
-def lc_folding(name, time, y, uncert, best_freq, ax, cycles=1):
+def lc_folding(name, time, y, uncert, best_freq, ax, t_start=None, cycles=1):
     '''
     Folds given light curve at a certain frequency.
     
     Parameters
     ----------
-    name: string
+    name : string
         Name of the source (e.g. 'Gaia DR3 123')
-    time: array of floats
+    time : array of floats
         Array with the time values.
-    y: array of floats
+    y : array of floats
         Array with the magnitude values.
-    uncert: array of floats
+    uncert : array of floats
         Array with the magnitude errors.
-    best_freq: float
+    best_freq : float
         Value of the frequency to fold the light curve at.
-    ax: matplotlib axes
+    ax : matplotlib axes
         Where to plot the folded light curve
-    cycle: float, optional
-        How many phases are shown.
+    t_start : float, optional
+        Initial time to fold the light curve. If None, it is set to the time
+        with min(y), Default is None.
+    cycle : float, optional
+        How many phases are shown. Default is 1.
     Returns
     -------
     None
@@ -781,17 +786,19 @@ def lc_folding(name, time, y, uncert, best_freq, ax, cycles=1):
     '''
     
     # Remove outliers
-    sigma = remove_outliers(y)
+    sigma = remove_outliers(y, n_std=4)
     
-    # Variables to input into the FINKER script
     time = np.array(time)[sigma]
     y = np.array(y)[sigma]
     if uncert is not None:
         uncert = np.array(uncert)[sigma]
     
     # Set initial time
-    min_index = np.argmax(y)
-    time = time - time[min_index]
+    if t_start is None:
+        min_index = np.argmax(y)
+        time = time - time[min_index]
+    else:
+        time = time - t_start
     
     
     # Plot folded light curve
@@ -803,17 +810,80 @@ def lc_folding(name, time, y, uncert, best_freq, ax, cycles=1):
     ax.invert_yaxis()
     ax.tick_params(axis='both', which='major', labelsize=14)
     if ((24*60)/best_freq)<60:
-        ax.set_title(f'{name}\nFreq: {best_freq}'+ '$d^{-1}$'+f'; period: {(24*60) / best_freq:.3f}' + r'$ \, min$',
-                     fontsize=18)
+        ax.set_title(f'{name}\nFreq: {best_freq:.4f}'+ '$d^{-1}$'+f'; period: {(24*60) / best_freq:.3f}' + r'$ \, min$',
+                     fontsize=20)
     elif ((((24*60)/best_freq)>60) and (((24*60)/best_freq)<(24*60))):
-        ax.set_title(f'{name}\nFreq: {best_freq}'+ '$d^{-1}$'+f'; period: {24 / best_freq:.3f}' + r'$ \, hr$',
-                     fontsize=18)
+        ax.set_title(f'{name}\nFreq: {best_freq:.4f}'+ '$d^{-1}$'+f'; period: {24 / best_freq:.3f}' + r'$ \, hr$',
+                     fontsize=20)
     else:
-        ax.set_title(f'{name}\nFreq: {best_freq}'+ '$d^{-1}$'+f'; period: {1/best_freq:.3f}' + r'$ \, d$',
-                     fontsize=18)
+        ax.set_title(f'{name}\nFreq: {best_freq:.4f}'+ '$d^{-1}$'+f'; period: {1/best_freq:.3f}' + r'$ \, d$',
+                     fontsize=20)
    
         
+        
+#---------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------#
+
+def lc_combined(name, t_list, y_list, y_list_err, filt_list, best_freq, t_start=None):
+    '''
+    Stacks plots of folded ligth curves of the same source with different 
+    instruments and/or filters.
+
+    Parameters
+    ----------
+    name : string
+        Name of the source.
+    t_list : list with arrays of floats
+        Each array in the list contains the time axis of the ligth curve in a
+        different instrument and/or filter.
+    y_list : list with arrays of floats
+        Each array in the list contains the y axis of the ligth curve in a
+        different instrument and/or filter.
+    y_list_err : list with arrays of floats
+        Each array in the list contains the errors of the y axis of the ligth 
+        curve in a different instrument and/or filter.
+    filt_list : list of strings
+        List of names of the different instruments/filters.
+    best_freq : float
+        Value of the frequency to fold the light curve at.
+    t_start : float, optional
+        Initial time to fold the light curve. If None, it is set to the time
+        with min(y), Default is None.
+
+    Returns
+    -------
+    None.
+
+    '''
     
+    fig = plt.figure(figsize=(11,5*len(t_list)))
+    height_ratios = np.repeat(1, len(t_list))
+    gs = gridspec.GridSpec(len(t_list), 1, height_ratios=height_ratios)
+    
+    for i in range(len(t_list)):
+        if i==0:
+            ax1 = fig.add_subplot(gs[i])
+            lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax1, t_start=t_start, cycles=2)
+            ax1.tick_params(axis='x', labelbottom=False, direction='in')
+            ax1.set_xlabel('')
+            trans = transforms.blended_transform_factory(ax1.transAxes, ax1.transAxes)
+            ax1.text(0.02,0.95, filt_list[i], fontsize=18, transform = trans, style='italic')
+        elif i==max(range(len(t_list))):
+            ax = fig.add_subplot(gs[i], sharex=ax1)
+            lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax, t_start=t_start, cycles=2)
+            ax.set_title('')
+            trans = transforms.blended_transform_factory(ax.transAxes, ax.transAxes)
+            ax.text(0.02,0.95, filt_list[i], fontsize=18, transform = trans, style='italic')
+        else:
+            ax = fig.add_subplot(gs[i], sharex=ax1)
+            lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax, t_start=t_start, cycles=2)
+            ax.set_title('')
+            ax.tick_params(axis='x', labelbottom=False, direction='in')
+            ax.set_xlabel('')
+            trans = transforms.blended_transform_factory(ax.transAxes, ax.transAxes)
+            ax.text(0.02,0.95, filt_list[i], fontsize=18, transform = trans, style='italic')
+        
+    gs.update(hspace=0)
 
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#

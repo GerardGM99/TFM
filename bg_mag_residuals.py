@@ -18,7 +18,7 @@ mask = (file['FLAGS_MASK'] == 0) & (file['SNR_OPT'] > 2) & (file['MAG_OPT'] > fi
 df = file[mask].to_pandas()
 
 for source in set(df['DR3_source_id']):
-    s_m = df['DR3_source_id'] == source
+    s_m = (df['DR3_source_id'] == source) #& (df['MJD-OBS']<60280)
     
     fig = plt.figure(figsize=(14,21))
     gs = gridspec.GridSpec(6, 1, height_ratios=[2, 1, 1, 1, 1, 1])
@@ -30,6 +30,8 @@ for source in set(df['DR3_source_id']):
     ax1.scatter(df['MJD-OBS'][s_m], df['MAG_APER_R1.5xFWHM'][s_m], s=s, marker='X', label='Aper 1.5x')
     ax1.scatter(df['MJD-OBS'][s_m], df['MAG_APER_R5xFWHM'][s_m], s=s, marker='^', label='Aper 5x')
     ax1.scatter(df['MJD-OBS'][s_m], df['MAG_ZOGY_PLUSREF'][s_m], s=s, marker='D', label='Plus ref')
+    flux = -2.5 * np.log10(df['FNU_OPT'][s_m]) + 23.8
+    ax1.scatter(df['MJD-OBS'][s_m], flux, s=s, marker='>', label='Flux Opt')
     ax1.invert_yaxis()
     ax1.set_title(f'{source}', fontsize=18, weight='bold')
     plt.ylabel("Magnitude", fontsize=16)

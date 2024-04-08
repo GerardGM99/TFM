@@ -17,7 +17,23 @@ import astropy.units as u
 from scipy.constants import h, c, k
 
 def Gaia_XP(id_list, out_path=None, plot=False):
-    
+    '''
+    Plota Gaia XP spectrum
+
+    Parameters
+    ----------
+    id_list : list of strings
+        List of Gaia DR3 IDs.
+    out_path : string, optional
+        If a path is given, the plot is saved there. The default is None.
+    plot : bool, optional
+        If True show the plot. The default is False.
+
+    Returns
+    -------
+    None.
+
+    '''
     #Balmer lines (nm)
     H_alfa = 656.3
     H_beta = 486.1
@@ -58,6 +74,10 @@ def Gaia_XP(id_list, out_path=None, plot=False):
 
 #thermal broadening
 def sig_T(T, wl):
+    '''
+    Standard deviation of a Gaussian spectral line due to thermal Doppler
+    boradening, given a temperature T and the position of the line wl.
+    '''
     kB = 1.381 * 10e-23 #Boltzmann constant, [J·K^{-1}]
     c = 299792458 #Speed of light, [m/s]
     mH = 1.6735575 * 10e-27 #Hydrogen mass, [kg]
@@ -66,27 +86,46 @@ def sig_T(T, wl):
 
 
 def line_width(sig_int, wl, R):
+    '''
+    Total line width of a Gaussian spectral line. Adds the standard deviation
+    due to the resolution of the spectrograph (of resolving power R) to the
+    intrinsic deviation sig_int, at position of the line wl.
+    '''
     sig_R = wl/(2*np.sqrt(2*np.log(2))*R)
     sigma = np.sqrt(sig_int**2 + sig_R**2)
     return sigma
 
 def gaussian_line(height, wl, sig, wl_range, n_points):
+    '''
+    Generates a Gaussian spectral line at position wl, with a given height 
+    and standard deviation.
+    '''
     g1 = models.Gaussian1D(height, wl, sig)
     x = np.linspace(wl_range[0], wl_range[1], n_points)
     y = g1(x)
     return x, y
 
 def add_noise(s, SNR):
-    noise = np.random.normal(0., np.mean(s)/SNR, s.shape)
-    return s + noise
+    '''
+    Adds random (Gaussian) noise to a signal s, given an SNR.
+    '''
+    noise = np.random.normal(0., s/SNR, s.shape)
+    return s + noise #* np.max(s)
 
 # Shifted line (due to radial velocity)
 def rv_shift(wl, v):
+    '''
+    Gives the shift of postion of a line at wl, due to a velocity v (Doppler
+    shifting).
+    '''
     c = 299792.458 #Speed of light, [km/s]
     dlambda = wl * v/c
     return dlambda
 
 def blackbody_radiation(wavelength, T):
+    '''
+    Blackbody radiation following Planck's law (wavelength).
+    '''
     # Plank's law (h in [J s], c in [m/s], k_b in [J/K], wavelenght in meters)
     intensity = (2 * h * c**2) / (wavelength**5) * (1 / (np.exp((h * c) / (wavelength * k * T)) - 1))
     return intensity
@@ -168,6 +207,45 @@ def model_spectral_lines(wl_range, lines, line_strenght, R, T, SNR, pix_size=Non
 #---------------------------------------------------------------------------------------------------------------#
 
 def rv_crosscorr(dx, dy, tx, ty, rvmin, rvmax, step, skipedge=0, plot=True):
+    '''
+    Calculates the radial velocity of a shifted line cross-correlating with a
+    template, using the pyasl module function puasl.crosscorrRV().
+
+    Parameters
+    ----------
+    dx : list of floats
+        Data values on the X axis (wavelengths).
+    dy : list of floats
+        Data values on the Y axis (fluxes).
+    tx : list of floats
+        Template values on the X axis (wavelengths).
+    ty : list of floats
+        Template values on the Y axis (fluxes).
+    rvmin : float
+        Minimum radial velocity for which to calculate the cross-correlation 
+        function [km/s].
+    rvmax : float
+        Maximum radial velocity for which to calculate the cross-correlation 
+        function [km/s].
+    step : float
+        The width of the radial-velocity steps to be applied in the calculation 
+        of the cross-correlation function [km/s].
+    skipedge : float, optional
+        If larger zero, the specified number of bins will be skipped from the 
+        begin and end of the observation. This may be useful if the template 
+        does not provide sufficient coverage of the observation.
+    plot : bool, optional
+        If True, show the cros-correlation VS RV plot. The default is True.
+
+    Returns
+    -------
+    rv[maxind] : float
+        Radial velocity that maximizes the cross-correlation function.
+    cc[maxind]: float
+        Maximum value of the cross-correlation funciton.
+
+    '''
+    
     # Carry out the cross-correlation.
     rv, cc = pyasl.crosscorrRV(dx, dy, tx, ty, rvmin, rvmax, step, skipedge=skipedge)
     
@@ -188,6 +266,43 @@ def rv_crosscorr(dx, dy, tx, ty, rvmin, rvmax, step, skipedge=0, plot=True):
 #---------------------------------------------------------------------------------------------------------------#
 
 def rv_crosscorr_err(n_boot, wl_range, n_points, lines, line_strenght, R, T, SNR, rv=[0], skipedge=20):
+    '''
+    Repeats the calculation of the radial veloctiy using cross-correlation
+    (rv_cross_corr()) 'n_boot' times to find a mean value of the radial
+    velocity that maximizes the cross-correlation function and an error given
+    by the standard deviation of all the values (bootstraping). Can find two
+    velocities, a positive and a negative rv.
+
+    Parameters
+    ----------
+    n_boot : int
+        Number of times the cross-correlation method is used to find a mean rv
+        and an error.
+    wl_range : TYPE
+        DESCRIPTION.
+    n_points : TYPE
+        DESCRIPTION.
+    lines : TYPE
+        DESCRIPTION.
+    line_strenght : TYPE
+        DESCRIPTION.
+    R : TYPE
+        DESCRIPTION.
+    T : TYPE
+        DESCRIPTION.
+    SNR : TYPE
+        DESCRIPTION.
+    rv : TYPE, optional
+        DESCRIPTION. The default is [0].
+    skipedge : TYPE, optional
+        DESCRIPTION. The default is 20.
+
+    Returns
+    -------
+    None.
+
+    '''
+    
     RVs = []
     if (len(rv)==1):
         rvmin, rvmax = rv[0]-10, rv[0]+10
@@ -203,6 +318,8 @@ def rv_crosscorr_err(n_boot, wl_range, n_points, lines, line_strenght, R, T, SNR
             found_rv, _ = rv_crosscorr(dx, dy, tx, ty, rvmin, rvmax, step, skipedge=skipedge, plot=False)
         RVs.append(found_rv)
     
+    # Differentiates positive and negative values, in case there are two 
+    # spectra shifter by two different velocities, one negative the other positive
     pos_RVs = [x for x in RVs if x > 0]
     neg_RVs = [x for x in RVs if x < 0]
     pos_RV_mean = np.mean(pos_RVs)
