@@ -8,6 +8,9 @@ Created on Thu Feb 22 19:13:20 2024
 import os
 from astropy.table import Table
 from astropy.time import Time
+from astropy.time import TimeDelta
+from astropy.coordinates import SkyCoord
+import astropy.units as u
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -16,9 +19,11 @@ import matplotlib.transforms as transforms
 import phot_utils # my own
 import seaborn as sns
 from astropy.timeseries import LombScargle
-import astropy.units as u
-import coord_utils
-
+import coord_utils # my own
+from astroplan import EclipsingSystem
+from astroplan import FixedTarget, Observer, is_observable, is_event_observable, PeriodicEvent
+from astroplan import PhaseConstraint, AtNightConstraint, AltitudeConstraint, LocalTimeConstraint
+import datetime as dt
 
 def standard_table(ins, lc_directory, asciicords, source_name, output_format='csv', suffix='csv'):
     '''
@@ -363,9 +368,11 @@ def remove_outliers(y, method='median', n_std=3):
     y: array of floats
         Magnitude values from which outliers are removed
     method: string, optional
-        Method used to remove outliers. Either 'median' (removes points a number
-        of standard deviations away from the median) or 'iqr' (InterQuartile 
-        Range), or None to not remove any outliers.
+        Method used to remove outliers. Either 'median' (removes points a 
+        number of standard deviations away from the median), 'iqr' 
+        (InterQuartile Range) or 'eb' (removes points that exceed 10 times the 
+        IQR at the faint side, and 2 times at the bright side), or None to not 
+        remove any outliers. The default is 'median'.
     n_std: float, optional
         Number of standard deviations or IQRs away from the median to reject the
         outliers.
@@ -390,10 +397,19 @@ def remove_outliers(y, method='median', n_std=3):
         median = np.median(y)
         iqr = q3 - q1
         sigma = np.abs(y- median) < n_std*iqr
+    
+    # 10 times on the faint side and 2 times on the bright side, to account for
+    # eclipses
+    if method=='eb':
+        q1 = np.percentile(y, 25)
+        q3 = np.percentile(y, 75)
+        median = np.median(y)
+        iqr = q3 - q1
+        sigma = ((y-median > 0) & (y-median < 10*iqr)) | ((y-median < 0) & (median-y < 2*iqr))
         
     if method==None:
         sigma = np.repeat(True, len(y))
-                        
+    
     return sigma
 
 
@@ -501,7 +517,7 @@ def plot_ind_lightcurves(file_name, ref_mjd=58190.45, y_ax='mag', outliers='medi
     color_dict = {
         ('ZTF', 'zg'):'g',
         ('ZTF', 'zr'):'r',
-        ('ZTF', 'zi'):'gold',
+        ('ZTF', 'zi'):'goldenrod',
         ('IRSA_ZTF', 'zg'):'g',
         ('IRSA_ZTF', 'zr'):'r',
         ('IRSA_ZTF', 'zi'):'gold',
@@ -786,7 +802,7 @@ def lc_folding(name, time, y, uncert, best_freq, ax, t_start=None, cycles=1):
     '''
     
     # Remove outliers
-    sigma = remove_outliers(y, n_std=4)
+    sigma = remove_outliers(y, method='median')
     
     time = np.array(time)[sigma]
     y = np.array(y)[sigma]
@@ -796,7 +812,7 @@ def lc_folding(name, time, y, uncert, best_freq, ax, t_start=None, cycles=1):
     # Set initial time
     if t_start is None:
         min_index = np.argmax(y)
-        time = time - time[min_index]
+        time = time - time.iloc[min_index]
     else:
         time = time - t_start
     
@@ -804,25 +820,23 @@ def lc_folding(name, time, y, uncert, best_freq, ax, t_start=None, cycles=1):
     # Plot folded light curve
     #fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 6))
     ax.errorbar((time * best_freq) % cycles, y,yerr=uncert, fmt='o', ecolor='black', capsize=2, elinewidth=2,
-                 markersize=2, markeredgewidth=2, alpha=0.8, color='black',zorder=0)
-    ax.set_xlabel('Phase', fontsize=18)
-    ax.set_ylabel(r'Magnitude', fontsize=18)
+                 markersize=2, markeredgewidth=0.5, alpha=0.8, color='black',zorder=0, mec='black')
+    ax.set_xlabel('Phase', fontsize=19)
+    ax.set_ylabel(r'Magnitude', fontsize=19)
     ax.invert_yaxis()
-    ax.tick_params(axis='both', which='major', labelsize=14)
+    ax.tick_params(axis='both', which='major', labelsize=18)
+    plt.suptitle(name, fontsize=20, weight='bold')
     if ((24*60)/best_freq)<60:
-        ax.set_title(f'{name}\nFreq: {best_freq:.4f}'+ '$d^{-1}$'+f'; period: {(24*60) / best_freq:.3f}' + r'$ \, min$',
+        ax.set_title(f'Freq: {best_freq:.4f}'+ '$d^{-1}$'+f'; period: {(24*60) / best_freq:.3f}' + r'$ \, min$',
                      fontsize=20)
     elif ((((24*60)/best_freq)>60) and (((24*60)/best_freq)<(24*60))):
-        ax.set_title(f'{name}\nFreq: {best_freq:.4f}'+ '$d^{-1}$'+f'; period: {24 / best_freq:.3f}' + r'$ \, hr$',
+        ax.set_title(f'Freq: {best_freq:.4f}'+ '$d^{-1}$'+f'; period: {24 / best_freq:.3f}' + r'$ \, hr$',
                      fontsize=20)
     else:
-        ax.set_title(f'{name}\nFreq: {best_freq:.4f}'+ '$d^{-1}$'+f'; period: {1/best_freq:.3f}' + r'$ \, d$',
+        ax.set_title(f'Freq: {best_freq:.4f}'+ '$d^{-1}$'+f'; period: {1/best_freq:.3f}' + r'$ \, d$',
                      fontsize=20)
    
-        
-        
-#---------------------------------------------------------------------------------------------------------------#
-#---------------------------------------------------------------------------------------------------------------#
+
 
 def lc_combined(name, t_list, y_list, y_list_err, filt_list, best_freq, t_start=None):
     '''
@@ -856,7 +870,28 @@ def lc_combined(name, t_list, y_list, y_list_err, filt_list, best_freq, t_start=
 
     '''
     
-    fig = plt.figure(figsize=(11,5*len(t_list)))
+    # Dictionary of colors for each instrument/filter combination
+    color_dict = {
+        ('ZTF, zg'):'g',
+        ('ZTF, zr'):'r',
+        ('ZTF, zi'):'goldenrod',
+        ('IRSA_ZTF, zg'):'g',
+        ('IRSA_ZTF, zr'):'r',
+        ('IRSA_ZTF, zi'):'goldenrod',
+        ('ASAS_SN, V'):'darkcyan',
+        ('ASAS_SN, g'):'blue',
+        ('ATLAS, o'):'orange',
+        ('ATLAS, c'):'cyan',
+        ('NEOWISE, W1'):'darkred',
+        ('NEOWISE, W2'):'slategray',
+        ('BLACKGEM, u'):'purple',
+        ('BLACKGEM, g'):'skyblue',
+        ('BLACKGEM, r'):'orange',
+        ('BLACKGEM, i'):'firebrick',
+        ('BLACKGEM, z'):'sienna',
+        ('BLACKGEM, q'):'black'}
+    
+    fig = plt.figure(figsize=(10,4*len(t_list)))
     height_ratios = np.repeat(1, len(t_list))
     gs = gridspec.GridSpec(len(t_list), 1, height_ratios=height_ratios)
     
@@ -864,40 +899,75 @@ def lc_combined(name, t_list, y_list, y_list_err, filt_list, best_freq, t_start=
         if i==0:
             ax1 = fig.add_subplot(gs[i])
             lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax1, t_start=t_start, cycles=2)
+            # Change color depending on ins and filter
+            errorbars = ax1.get_children()
+            plot_color = color_dict.get(filt_list[i], 'black')
+            for j in range(4):
+                errorbars[j].set_color(plot_color)
             ax1.tick_params(axis='x', labelbottom=False, direction='in')
             ax1.set_xlabel('')
             trans = transforms.blended_transform_factory(ax1.transAxes, ax1.transAxes)
-            ax1.text(0.02,0.95, filt_list[i], fontsize=18, transform = trans, style='italic')
+            ax1.text(0.02,0.93, filt_list[i], fontsize=18, transform = trans, style='italic')
         elif i==max(range(len(t_list))):
             ax = fig.add_subplot(gs[i], sharex=ax1)
             lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax, t_start=t_start, cycles=2)
+            # Change color depending on ins and filter
+            errorbars = ax.get_children()
+            plot_color = color_dict.get(filt_list[i], 'black')
+            for j in range(4):
+                errorbars[j].set_color(plot_color)
             ax.set_title('')
             trans = transforms.blended_transform_factory(ax.transAxes, ax.transAxes)
-            ax.text(0.02,0.95, filt_list[i], fontsize=18, transform = trans, style='italic')
+            ax.text(0.02,0.93, filt_list[i], fontsize=18, transform = trans, style='italic')
         else:
             ax = fig.add_subplot(gs[i], sharex=ax1)
             lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax, t_start=t_start, cycles=2)
+            # Change color depending on ins and filter
+            errorbars = ax.get_children()
+            plot_color = color_dict.get(filt_list[i], 'black')
+            for j in range(4):
+                errorbars[j].set_color(plot_color)
             ax.set_title('')
             ax.tick_params(axis='x', labelbottom=False, direction='in')
             ax.set_xlabel('')
             trans = transforms.blended_transform_factory(ax.transAxes, ax.transAxes)
-            ax.text(0.02,0.95, filt_list[i], fontsize=18, transform = trans, style='italic')
+            ax.text(0.02,0.93, filt_list[i], fontsize=18, transform = trans, style='italic')
         
     gs.update(hspace=0)
     
     
 def bulk_combine(name, instruments, best_freq):
+    '''
+    Calls lc_combined with the instruments given.
+    
+    Parameters
+    ----------
+    name : string
+        Name of the source.
+    instruments : list of strings
+        Instruments from which the data is taken from. Available now are: 
+            ZTF, IRSA_ZTF, ATLAS, ASAS_SN, NEOWISE, BLACKGEM.
+    best_freq : float
+        Value of the frequency to fold the light curve at..
+
+    Returns
+    -------
+    None.
+
+    '''
     times=[]
     mags=[]
     mag_errs=[]
     filts=[]
     for ins in instruments:
-        table = pd.read_csv('{ins}_lightcurves_std/{name}.csv')
+        table = pd.read_csv(f'{ins}_lightcurves_std/{name}.csv')
         bands=list(set(table['filter']))
         for i, band in enumerate(bands):
             t=table['mjd'].loc[table['filter']==band]
-            if 
             y=table['mag'].loc[table['filter']==band]
+            if i == 0:
+                min_index = np.argmax(y)
+                t_start = t.iloc[min_index]
             yerr=table['magerr'].loc[table['filter']==band]
             filt = table['inst'][0] + ', ' + band
             times.append(t)
@@ -905,8 +975,7 @@ def bulk_combine(name, instruments, best_freq):
             mag_errs.append(yerr)
             filts.append(filt)
 
-    lc_combined('Gaia DR3 2060841448854265216', times, mags, mag_errs, filts, 
-                best_freq, t_start=t_start)
+    lc_combined(name, times, mags, mag_errs, filts, best_freq, t_start=t_start)
 
     plt.tight_layout()
     plt.show()
@@ -1000,3 +1069,302 @@ def lomb_scargle(t, y, yerr=None, fmin=None, fmax=None, plot=True):
         plt.show()
         
     return frequency, power, fig
+
+#---------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------#
+
+def next_transits(name, observing_time, eclipse_time, orbital_period, eclipse_duration=None, 
+                  eclipse_time_format='mjd', n_eclipses=5, verbose=True):
+    '''
+    Gives the next n_eclipses transits of an object with an eclipse at
+    eclipse_time and an orbital_period, starting at observing_time.
+
+    Parameters
+    ----------
+    name : string
+        Name of the object to observe.
+    observing_time : string
+        Date ('yyyy-mm-dd hh-mm-ss') from which dates of transit are computed.
+    eclipse_time : string
+        Date ('yyyy-mm-dd hh-mm-ss') when a (primary) eclipse happened.
+    orbital_period : float with units
+        Period of the elcipse, with units (astropy.units).
+    eclipse_duration : float with units, optional
+        Duration of the eclipse. The default is None.
+    eclipse_time_format : string, optional
+        Format of the elcipse_time. The default is 'mjd'.
+    n_eclipses : int, optional
+        Number of next transits computed. The default is 5.
+    verbose : bool, optional
+        If True, text with the calculations is shown. If False, the function
+        does the calculations and returns the dates of the next primary and 
+        secondary eclipses. The default is True.
+
+    Returns
+    -------
+    next_pe : list of dates
+        Dates of the next primary eclipses.
+    next_se : list of dates
+        Dates of the next secondary eclipses.
+
+    '''
+    observing_time = Time(observing_time)
+    primary_eclipse_time = Time(eclipse_time, format=eclipse_time_format)
+    system = EclipsingSystem(primary_eclipse_time=primary_eclipse_time,
+                           orbital_period=orbital_period, duration=eclipse_duration,
+                           name=name)
+    
+    if verbose:
+        print(f'| Observing "{name}" at {observing_time} |')
+        print('-----------------------------------------------------------------')
+        print(f'Next {n_eclipses} primary eclipses:')
+        next_pe = system.next_primary_eclipse_time(observing_time, n_eclipses=n_eclipses)
+        print(next_pe)
+        print('-----------------------------------------------------------------')
+        print(f'Next {n_eclipses} secondary eclipses:')
+        next_se = system.next_secondary_eclipse_time(observing_time, n_eclipses=n_eclipses)
+        print(next_se)
+        print('-----------------------------------------------------------------')
+            
+        if eclipse_duration is not None:
+            print(f'Next {n_eclipses} primary ingress and egress times:')
+            ie_t = system.next_primary_ingress_egress_time(observing_time, n_eclipses=n_eclipses)
+            ie_t.format='iso'
+            print(ie_t)
+            print('-----------------------------------------------------------------')
+            print(f'Next {n_eclipses} secondary ingress and egress times:')
+            ie_t = system.next_secondary_ingress_egress_time(observing_time, n_eclipses=n_eclipses)
+            ie_t.format='iso'
+            print(ie_t)
+            
+    return next_pe, next_se
+        
+
+        
+def observable(name, ra, dec, site_name, time_range, obs_date=None,
+               phase_range=None, event_time=None, period=None, eclipse_time_format='mjd',
+               twilight='astronomical', min_altitude=30*u.deg):
+    '''
+    Tells if an object is observable or not given some conditions.'
+    There are three options:
+        - If phase_range is set: observability of an object with some
+        periodicity given the conditions, and the object is in a phase between
+        the ones given in phase_range.
+        - If phase_range is None, and obs_date is set: observability of an
+        object in specific dates given in obs_date. Basically, is the object
+        observable at ['yyyy-mm-dd hh-mm-ss', ('yyyy-mm-dd hh-mm-ss'), ...]?
+        - If phase_range and obs_date are None: observability of an object in
+        a wide range of dates. Basically, is the object observable in any nigth
+        between 'yyyy-mm-dd hh-mm-ss' and 'yyyy-mm-dd hh-mm-ss'? (These dates
+        are the ones specified in time_range).
+
+    Parameters
+    ----------
+    name : string
+        Name of the object to observe.
+    ra : float
+        Right ascension of the object to observe, in degrees.
+    dec : float
+        Deeclination of the object to observe, in degrees.
+    site_name : string
+        Name of the site of the observation. Needs to be a name in the astropy-
+        -data repository
+    time_range : tuple
+        Can be a tuple of floats indicating the hours to start and end
+        observations when obs_date is set (for specific observation dates).
+        A tuple of dates ('yyyy-mm-dd hh-mm-ss') to check observability in a 
+        wider range, or if phase_range is set.
+    obs_date : list of dates, optional
+        Specific dates to observe. Can be convined with next_transits to check
+        if the object is observable during the transits. The default is None.
+    phase_range : tuple, optional
+        Check if the object is observable while in a phase between the two 
+        values in the phase_range. The default is None.
+    event_time : string, optional
+        Date ('yyyy-mm-dd hh-mm-ss') when a an event happened. Only relevant if
+        phase_range is set. The default is None.
+    period : float with units, optional
+        Period of the elcipse, with units (astropy.units). Only relevant if
+        phase_range is set. The default is None.
+    eclipse_time_format : string, optional
+        Format of the elcipse_time.Only relevant if phase_range is set. The 
+        default is 'mjd'.
+    twilight : string, optional
+        Either 'astronomical', 'nautical' or 'civil'. The default is
+        'astronomical'.
+    min_altitude : float with units, optional
+        Constrain on the minimum altitude accepted. The default are 30 degrees.
+
+    Raises
+    ------
+    Exception
+        An exception is raised if the phase_range is set, but no event_time and
+        no period are given for the periodic event. Also, if the twilight is not
+        given correctly.
+
+    Returns
+    -------
+    None.
+
+    '''
+    print('True means that the object is observable with the conditions given.')
+    
+    # Set twilight
+    if twilight == 'astronomical':
+        twilight = AtNightConstraint.twilight_astronomical()
+    elif twilight == 'nautical':
+        twilight = AtNightConstraint.twilight_nautical()
+    elif twilight == 'civil':
+        twilight = AtNightConstraint.twilight_civil()
+    else:
+        raise Exception('Twilight must be one of: "astronomical", "nautical" or "civil"')
+    
+    # Target to observe and site of observation
+    target = FixedTarget(SkyCoord(ra=ra*u.deg, dec=dec*u.deg, frame='icrs')) 
+    site = Observer.at_site(site_name)  # Site of observations
+    
+    # Check observability in a given phase range
+    if phase_range is not None:
+        if event_time is None or period is None:
+            raise Exception('To see if a phase range is observable, seting event_time and period is needed.')
+        epoch = Time(event_time, format=eclipse_time_format)  # Reference time of periodic event  
+        event = PeriodicEvent(epoch=epoch, period=period)
+        start_time = Time(time_range[0])  # Start of observing time
+        end_time = Time(time_range[1])  # End of observing time
+        constraints = [PhaseConstraint(event, min=phase_range[0], max=phase_range[1]),
+                       twilight, AltitudeConstraint(min=min_altitude)]
+        print(is_observable(constraints, site, target, time_range=[start_time, end_time]))
+    
+    else:
+        # Check observability in specific times (e.g. '2024-04-12 04:23:11', '2024-04-13 01:45:59')
+        if obs_date is not None:
+            min_t = dt.time(time_range[0])
+            max_t = dt.time(time_range[1])
+            constraints = [twilight, AltitudeConstraint(min=min_altitude),
+                           LocalTimeConstraint(min=min_t, max=max_t)]
+            print(is_event_observable(constraints, site, target, times=obs_date))
+        # Check observability in a range of dates (e.g. any night from '2024-04-12 20:00:00' to '2024-04-21 06:00:00') 
+        else:
+            start_time = Time(time_range[0])  # Start date
+            end_time = Time(time_range[1])  # Ending date
+            constraints = [twilight, AltitudeConstraint(min=min_altitude)]
+            print(is_observable(constraints, site, target, time_range=[start_time, end_time]))
+        
+        
+        
+def observable_when(name, ra, dec, site_name, time_range, delta, phase_range=None, event_time=None, period=None, 
+                    eclipse_time_format='mjd', twilight='astronomical', min_altitude=30*u.deg, verbose=False):
+    '''
+    Checks if an object is observable during a time period, checking every
+    time step (delta).
+
+    Parameters
+    ----------
+    name : string
+        Name of the object to observe.
+    ra : float
+        Right ascension of the object to observe, in degrees.
+    dec : float
+        Deeclination of the object to observe, in degrees.
+    site_name : string
+        Name of the site of the observation. Needs to be a name in the astropy-
+        -data repository
+    time_range : tuple
+        A tuple with the starting and ending dates ('yyyy-mm-dd hh-mm-ss') to
+        check observability.
+    delta : float with units
+        Time step.
+    phase_range : tuple, optional
+        Check if the object is observable while in a phase between the two 
+        values in the phase_range. The default is None.
+    event_time : string, optional
+        Date ('yyyy-mm-dd hh-mm-ss') when a an event happened. Only relevant if
+        phase_range is set. The default is None.
+    period : float with units, optional
+        Period of the elcipse, with units (astropy.units). Only relevant if
+        phase_range is set. The default is None.
+    eclipse_time_format : string, optional
+        Format of the elcipse_time.Only relevant if phase_range is set. The 
+        default is 'mjd'.
+    twilight : string, optional
+        Either 'astronomical', 'nautical' or 'civil'. The default is
+        'astronomical'.
+    min_altitude : float with units, optional
+        Constrain on the minimum altitude accepted. The default are 30 degrees.
+    verbose : bool, optional
+        If True, prints some stuff to see what the function is doing. The 
+        default is False.
+
+    Raises
+    ------
+    Exception
+        An exception is raised if the twilight is not given correctly.
+
+    Returns
+    -------
+    observable_dates : list
+        List with the dates when the target is observable.
+
+    '''
+    # Set twilight
+    if twilight == 'astronomical':
+        twilight = AtNightConstraint.twilight_astronomical()
+    elif twilight == 'nautical':
+        twilight = AtNightConstraint.twilight_nautical()
+    elif twilight == 'civil':
+        twilight = AtNightConstraint.twilight_civil()
+    else:
+        raise Exception('Twilight must be one of: "astronomical", "nautical" or "civil"')
+        
+    # Target to observe and site of observation
+    target = FixedTarget(SkyCoord(ra=ra*u.deg, dec=dec*u.deg, frame='icrs')) 
+    site = Observer.at_site(site_name)  # Site of observations
+    
+    start_time = Time(time_range[0])  # Start of observing time
+    end_time = Time(time_range[1])  # End of observing time
+    dt = end_time-start_time  # TimeDelta when observations are desired
+    delta = TimeDelta(delta)
+    n_steps = int(dt/delta)  # Number of dates/times to check. 1+ to check both starting and ending dates
+    date = start_time  # Setup the starting date/time
+    check_obs_dates = [date]  # List of dates to check observability
+    # Fill the list with the dates that will be checked for observability
+    for _ in range(n_steps):
+        date += delta
+        check_obs_dates.append(date)
+    if verbose:
+        print('Number of steps: ', n_steps)
+        print('Checking dates:')
+        for t in check_obs_dates:
+            print(t.value)
+        print('Observable?:')
+    observable_dates=[]  # List of dates the object will be observable with the desired conditions
+    # Check observability in a given phase range
+    if phase_range is not None:
+        if event_time is None or period is None:
+            raise Exception('To see if a phase range is observable, seting event_time and period is needed.')
+        epoch = Time(event_time, format=eclipse_time_format)  # Reference time of periodic event  
+        event = PeriodicEvent(epoch=epoch, period=period)
+        constraints = [PhaseConstraint(event, min=phase_range[0], max=phase_range[1]),
+                       twilight, AltitudeConstraint(min=min_altitude)]
+        for time, next_time in zip(check_obs_dates, check_obs_dates[1:]):
+            check = is_observable(constraints, site, target, time_range=[time, next_time])[0]
+            if verbose:
+                print([time.value, next_time.value], check)
+            if check is True:
+                observable_dates.append([time.value, next_time.value])
+    else:
+        constraints = [twilight, AltitudeConstraint(min=min_altitude)]
+        for time, next_time in zip(check_obs_dates, check_obs_dates[1:]):
+            check = is_observable(constraints, site, target, time_range=[time, next_time])[0]
+            if verbose:
+                print([time.value, next_time.value], check)
+            if check == True:
+                observable_dates.append([time.value, next_time.value])
+        
+    if len(observable_dates) == 0:
+        print('---')
+        print(f'The object {name} is not observable between {time_range[0]} and {time_range[1]}.')
+    else:
+        print('---')
+        print(f'The object {name} is obsevable during the following period(s):')
+        return observable_dates

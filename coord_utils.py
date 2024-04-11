@@ -23,6 +23,44 @@ import pylab
 import os
 from scipy.interpolate import interpn
 
+
+# Nadia's code (from finder_chart.py)
+def deg2hour(ra, dec, sep=":"):
+    '''
+    Transforms the coordinates in degrees into HH:MM:SS DD:MM:SS with the requested separator.
+    '''
+    
+    if ( type(ra) is str and type(dec) is str ):
+        return ra, dec
+        
+    c = SkyCoord(ra, dec, frame='icrs', unit='deg')
+    
+    ra = c.ra.to_string(unit=u.hourangle, sep=sep, precision=2, pad=True)
+    dec = c.dec.to_string(sep=sep, precision=2, alwayssign=True, pad=True)
+    
+    return str(ra), str(dec)
+    
+    
+def hour2deg(ra, dec):
+    '''
+    Transforms string HH:MM:SS DD:MM:SS coordinates into degrees (floats).
+    '''
+    try:
+        ra = np.double(ra)
+        dec = np.double(dec)
+        
+    except:
+        c = SkyCoord(ra, dec, frame='icrs', unit=(u.hourangle, u.deg))
+        
+        ra = c.ra.deg
+        dec = c.dec.deg
+    
+    return ra, dec
+
+#---------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------#
+
+
 def sky_xmatch(table1, table2, radius, column_names, read=False):
     '''
     Sky cross match two tables. First table is the main one, second table only

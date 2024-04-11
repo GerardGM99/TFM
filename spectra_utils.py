@@ -13,8 +13,10 @@ import pandas as pd
 import numpy as np
 from PyAstronomy import pyasl
 from astropy.modeling import models
+from astropy.table import Table
 import astropy.units as u
 from scipy.constants import h, c, k
+from astroquery.gaia import Gaia
 
 def Gaia_XP(id_list, out_path=None, plot=False):
     '''
@@ -69,6 +71,78 @@ def Gaia_XP(id_list, out_path=None, plot=False):
         plt.close()
         
 
+def Gaia_rvs(id_list, rv_table=None, plot=True, out_dir=None):
+    '''
+    RVS from Gaia using datalink service.
+
+    Parameters
+    ----------
+    id_list : list
+        List with the Gaia DR3 source_ids.
+    rv_table : astropy.table, optional
+        Table with the Gaia radial velocity for each source. If given, the rv
+        and expected SNR are shown in the plot. The default is None.
+    plot : bool, optional
+        If True, the plot is shown. The default is True.
+    out_dir : string, optional
+        Path to the directory where to store the RVS plots. The default is 
+        None.
+
+    Returns
+    -------
+    out_df : pandas.DataFrame
+        Dataframe containing the x and y axis (wavelengths and fluxes) for each
+        source's RVS.
+
+    '''
+    
+    # Ca triplet
+    CaT = [849.8, 854.2, 866.2]
+    
+    # Load data (https://www.cosmos.esa.int/web/gaia-users/archive/datalink-products#datalink_jntb_get_all_prods)
+    retrieval_type = 'RVS'         
+    data_structure = 'COMBINED'   
+    data_release   = 'Gaia DR3'
+    
+    datalink = Gaia.load_data(ids=id_list, data_release = data_release, retrieval_type=retrieval_type, 
+                              data_structure = data_structure, verbose = False, output_file = None)
+    dl_key   = 'RVS_COMBINED.xml'
+    source_ids  = [product.get_field_by_id("source_id").value for product in datalink[dl_key]]
+    tables      = [product.to_table()                         for product in datalink[dl_key]]
+    
+    x_axis=[]
+    y_axis=[]
+    # Plot RV Spectra for each source in id_list
+    for inp_table, ids in zip(tables,source_ids):
+        wavelenght = inp_table['wavelength']
+        flux = inp_table['flux']
+        x_axis.append(wavelenght)
+        y_axis.append(flux)
+        if plot:
+            fig, ax = plt.subplots(figsize=(12,8))
+            ax.plot(wavelenght, flux, color='k')
+            for wl in CaT:
+                plt.axvline(wl, linestyle='--', alpha=0.7, color='blue')
+            ax.set_xlabel(f'Wavelength [{inp_table["wavelength"].unit}]', fontsize=18)
+            ax.set_ylabel('Normalized Flux', fontsize=18)
+            ax.tick_params(axis='both', labelsize=18)
+            if rv_table is not None:
+                rv = rv_table['radial_velocity'][rv_table['SOURCE_ID']==ids][0]
+                SNR = rv_table['rv_expected_sig_to_noise'][rv_table['SOURCE_ID']==ids][0]
+                ax.set_title(f'RV: {rv:.3f} km/s; Expected SNR: {SNR:.2f}', fontsize=20)
+                plt.suptitle(f'Gaia DR3 {ids}', weight='bold', fontsize=20)
+            else:
+                ax.set_title(f'Gaia DR3 {ids}', weight='bold', fontsize=20)
+                
+            if out_dir is not None:
+                plt.savefig(f'{out_dir}/{ids}_RVS.png', bbox_inches = "tight", format = "png")
+            plt.show()
+            plt.close()
+
+    # Output a dataframe with the x and y axis of each source's RVS
+    out_df = pd.DataFrame({'IDs':source_ids, 'wavelenghts':x_axis, 'fluxes':y_axis})
+    return out_df
+
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#
 
@@ -109,8 +183,8 @@ def add_noise(s, SNR):
     '''
     Adds random (Gaussian) noise to a signal s, given an SNR.
     '''
-    noise = np.random.normal(0., s/SNR, s.shape)
-    return s + noise #* np.max(s)
+    noise = np.random.normal(0., np.mean(s)/SNR, s.shape)
+    return s + noise 
 
 # Shifted line (due to radial velocity)
 def rv_shift(wl, v):
