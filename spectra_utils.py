@@ -5,8 +5,8 @@ Created on Tue Mar  5 13:49:06 2024
 @author: Gerard Garcia
 """
 
-from gaiaxpy import convert, calibrate
-from gaiaxpy import plot_spectra
+# from gaiaxpy import convert, calibrate
+# from gaiaxpy import plot_spectra
 import matplotlib.pyplot as plt
 import matplotlib.transforms as transforms
 import pandas as pd
@@ -16,7 +16,9 @@ from astropy.modeling import models
 from astropy.table import Table
 import astropy.units as u
 from scipy.constants import h, c, k
+from math import pi
 from astroquery.gaia import Gaia
+from scipy.special import wofz
 
 def Gaia_XP(id_list, out_path=None, plot=False):
     '''
@@ -146,7 +148,7 @@ def Gaia_rvs(id_list, rv_table=None, plot=True, out_dir=None):
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#
 
-#thermal broadening
+#thermal broadening 
 def sig_T(T, wl):
     '''
     Standard deviation of a Gaussian spectral line due to thermal Doppler
@@ -178,6 +180,54 @@ def gaussian_line(height, wl, sig, wl_range, n_points):
     x = np.linspace(wl_range[0], wl_range[1], n_points)
     y = g1(x)
     return x, y
+
+def voigt_line(lambda1, lambdax, gamma, T, m, R):
+    '''
+    Generates a line with a Voigt distribution. UNITS!!!!
+
+    Parameters
+    ----------
+    lambda1 : float
+        Central wavelength of the line.
+    lambdax : array of floats
+        Wavelength as independent variable (x axis).
+    gamma : float
+        Constant related to the probability of the transitions for each atom.
+    T : float
+        Temperature of the gas.
+    m : float
+        Atomic mass.
+    R : float
+        Resolving power of the intrument.
+
+    Returns
+    -------
+    V : array of floats
+        Voigt distribution (y axis).
+
+    '''    
+    # Standard deviation of the Gaussian (DOPPLER BROADENING)
+    thermal_b = np.sqrt(2*k*T/m)  # m/s
+    FWHM = thermal_b * lambda1/c  # A
+    sigma_doppler = FWHM / (2*np.sqrt(2*np.log(2)))  # A
+    
+    # Broadening due to instrument
+    sigma_R = lambda1/(2*np.sqrt(2*np.log(2))*R)  # A
+    
+    # Add the 2 sigmas together
+    sigma = np.sqrt(sigma_doppler**2 + sigma_R**2)
+    
+    # Voigt parameters
+    # u_v = c*(lambda1/lambdax - 1)
+    # a = lambda1*gamma/(4*pi)
+    u_v = c/thermal_b*(lambda1/lambdax - 1)
+    nudop=1e10*thermal_b/lambda1
+    a = gamma/(4*pi*nudop)
+    
+    # Voigt distribution
+    # V = wofz((u_v + 1j * a)/(2*sigma)).real / (np.sqrt(2 * pi) * sigma)
+    V = wofz(u_v + 1j * a).real
+    return V
 
 def add_noise(s, SNR):
     '''
@@ -215,6 +265,7 @@ def model_spectral_lines(wl_range, lines, line_strenght, R, T, SNR, pix_size=Non
         central_wl = (wl_range[0]+wl_range[1])/2.
         res_element = central_wl/R
         pix_size = res_element/2. # We assume 2 pixels per resolution element
+        print('pix size: ', pix_size)
         n_points = round((wl_range[1]-wl_range[0])/pix_size)
 
     # Create the template (only if rv is not 0; if rv=0, the tamplate spectra
@@ -235,8 +286,11 @@ def model_spectral_lines(wl_range, lines, line_strenght, R, T, SNR, pix_size=Non
         dy1 = np.zeros(n_points)
         for position, height in zip(lines.values(), line_strenght):
             dlambda = rv_shift(position, vel)
-            sigma = line_width(sig_T(T,position+dlambda), position+dlambda, R)
-            dx, y = gaussian_line(height, position+dlambda, sigma, wl_range, n_points)
+            #sigma = line_width(sig_T(T,position+dlambda), position+dlambda, R)
+            #dx, y = gaussian_line(height, position+dlambda, sigma, wl_range, n_points)
+            dx = np.linspace(wl_range[0], wl_range[1], n_points)
+            gamma, m = 1e5, 1.6735575 * 10e-27 #PROVISIONAL
+            y = voigt_line(position+dlambda, dx, gamma, T, m, R)
             dy1 += y #sum for each line
         spectra.append(dy1)
         

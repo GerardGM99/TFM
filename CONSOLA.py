@@ -8,13 +8,13 @@ Created on Sun Feb 25 13:15:25 2024
 
 from lightcurve_utils import standard_table
 
-standard_table('NEOWISE', 'data/table_irsa_catalog_search_results_NEOWISE.csv', 'data/70_targets.csv', 'DR3_source_id')
+standard_table('MeerLICHT', 'data/ML_paul.csv', 'data/70_targets.csv', 'DR3_source_id')
 
 #%%
 
 from lightcurve_utils import plot_lightcurves
 
-plot_lightcurves('IRSA_ZTF_lightcurves_std')
+plot_lightcurves('MeerLICHT_lightcurves_std')
 
 #%%
 from Finker_script import use_finker
@@ -188,8 +188,8 @@ for ra, dec, name in zip(asciicords['ra'], asciicords['dec'], asciicords['DR3_so
 
 import spectra_utils as su
 
-_,_,_,_ = su.model_spectral_lines([6540, 6590], {'Ha':6563}, [0.8], 25000, 7000, 20, cont=True, rv=[-20, 20])
-_,_,_,_ = su.model_spectral_lines([4000, 7000], {'Ha':6563}, [0.8], 25000, 7000, 20, cont=True, rv=[-20, 20])
+_,_,_,_ = su.model_spectral_lines([6553, 6573], {'Ha':6563}, [0.8], 5000, 7000, 10, cont=False, rv=[0])
+#_,_,_,_ = su.model_spectral_lines([4000, 7000], {'Ha':6563}, [0.8], 25000, 7000, 20, cont=True, rv=[-20, 20])
 #su.rv_crosscorr_err(n_boot, wl_range, n_points, lines, line_strenght, R, T, SNR)
 
 #%%
@@ -251,3 +251,48 @@ for ide in t_coord['source_id']:
 dic = {'Object':name, 'alpha':ra, 'delta':dec, 'equinox':eq, 'comments':com}
 calar_table = Table(dic)
 calar_table.write('data/calar_targets_ipac.txt', format='ipac', overwrite=True)
+
+#%%
+
+from astropy.table import Table
+import numpy as np
+import pandas as pd
+
+separator='|'
+print ( "%s %s %s %s %s %s %s"%("# Name".ljust(12), separator, "ra".ljust(7), separator, "dec".ljust(7), separator, "mag") )
+name=['AT 2024gfa', 'AT 2024gbc', 'AT 2024gfg', 'AT 2024gai', 'AT 2024fpb', 'AT 2024ggi', 'AT 2024dgr', 'AT 2024evp']
+ra=['160.698', '218.631', '269.483', '266.020', '287.460', '169.592', '288.192', '236.548']
+dec=['+27.662', '+58.310', '+85.550', '-13.359', '-17.939', '-32.838', '-19.269', '-10.057']
+mag=['17.10', '18.18', '18.19', '17.90', '17.90', '18.90', '16.63', '16.26']
+
+for i in range(len(name)):
+    print ( "%s %s %s %s %s %s %s"%(name[i].ljust(12), separator, ra[i], separator, dec[i], separator, mag[i]) )
+    
+t = Table({'name':name, 'ra':ra, 'dec':dec, 'mag':mag})
+t.write('Calar_transient_list.txt', format='ascii')
+
+#%%
+
+from finder_chart import get_finder
+
+name=['AT2024gfg', 'AT2024fpb', 'AT2024ggi', 'AT2024dgr']
+ra=[269.483, 287.460, 169.592, 288.192]
+dec=[+85.550, -17.939, -32.838, -19.269]
+mag_transient=[18.19, 17.90, 18.92, 16.83]
+
+for i in range(len(name)):
+    get_finder(ra[i], dec[i], name[i], 3/60, debug=True,
+               starlist=None, print_starlist=True, telescope="Calar",
+               directory="calar_finders", minmag=11, maxmag=13, mag=mag_transient[i],
+               image_file=None)
+    
+#%%
+from finder_chart import get_finder
+
+get_finder(223.77534530000003, 46.7292828, "AT 2024gke", 3/60, debug=True,
+           starlist=None, print_starlist=True, telescope="Calar",
+           directory="calar_finders", minmag=11, maxmag=13, mag=18.26,
+           image_file=None)
+
+
+    

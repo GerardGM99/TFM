@@ -20,9 +20,9 @@ import phot_utils # my own
 import seaborn as sns
 from astropy.timeseries import LombScargle
 import coord_utils # my own
-from astroplan import EclipsingSystem
-from astroplan import FixedTarget, Observer, is_observable, is_event_observable, PeriodicEvent
-from astroplan import PhaseConstraint, AtNightConstraint, AltitudeConstraint, LocalTimeConstraint
+# from astroplan import EclipsingSystem
+# from astroplan import FixedTarget, Observer, is_observable, is_event_observable, PeriodicEvent
+# from astroplan import PhaseConstraint, AtNightConstraint, AltitudeConstraint, LocalTimeConstraint
 import datetime as dt
 
 def standard_table(ins, lc_directory, asciicords, source_name, output_format='csv', suffix='csv'):
@@ -67,11 +67,11 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
              ("mag","<f4"), ("magerr","<f4"), ("flux","<f4"), ("fluxerr","<f4")]
     
     # Read directory with light curve files
-    if (ins != 'NEOWISE') and (ins != 'IRSA_ZTF'):
+    if (ins != 'NEOWISE') and (ins != 'IRSA_ZTF') and (ins != 'MeerLICHT'):
         lc = os.listdir(lc_directory)
     
     # Read the file with the ids and coordinates of the sources
-    if ins != 'BLACKGEM':
+    if (ins != 'BLACKGEM') and (ins != 'MeerLICHT'):
         #table_coord = pd.read_csv(asciicords)
         table_coord = Table.read(asciicords, format='ascii.csv')
     
@@ -354,8 +354,52 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
                         
                     # Write the output table in the desired directory
                     final_table.write(f'{output_path}/{file_name}.{suffix}', format=output_format, overwrite=True)
-    
-
+                    
+    if ins == 'MeerLICHT':
+        # Create directory where to store the output files
+        output_path = './MeerLICHT_lightcurves_std'
+        if not os.path.isdir(output_path):
+            os.makedirs(output_path)
+        
+        # Create directory where to store the separated NEOWISE light curves
+        pathos = './MeerLICHT_lightcurves'
+        if not os.path.isdir(pathos):
+            os.makedirs(pathos)
+        
+        # Bulk downloading ZTF light curves from IRSA generates a single table with all the sources
+        # So we separate the sources in independent tables/files
+        MeerLICHT_bulk_file = pd.read_csv(lc_directory) # Read the file with all the sources' light curves
+        
+        # Clean the data removing points with high error on the magnitude or the flux, negative flux, 
+        # with high chi/N values or with background magnitude lower than the observation
+        MeerLICHT_bulk_file = MeerLICHT_bulk_file[(MeerLICHT_bulk_file['SNR_OPT']>5) & (MeerLICHT_bulk_file['MAGERR_OPT']<1) & 
+                                (MeerLICHT_bulk_file['LIMMAG_OPT']>MeerLICHT_bulk_file['MAG_OPT'])]
+        
+        for name in list(set(MeerLICHT_bulk_file['DR3_source_id'])):
+            separated_lc = MeerLICHT_bulk_file[MeerLICHT_bulk_file['DR3_source_id']==name]
+            separated_lc.to_csv(f'{pathos}/{name}.csv')
+            
+        # Loop for every light curve file in the lc directory
+        lc = os.listdir(pathos)
+        for file in lc:
+            # Read light curve file
+            table_clean = Table.read(f'{pathos}/{file}', format='ascii.csv')
+                        
+            # Create and fill output table
+            final_table = np.zeros(len(table_clean), dtype=mydtype)
+            
+            final_table['inst'] = ins
+            final_table['filter'] = table_clean['FILTER']
+            final_table['mjd'] = table_clean['MJD-OBS']
+            final_table['mag'] = table_clean['MAG_OPT']
+            final_table['magerr'] = table_clean['MAGERR_OPT']
+            final_table['name'] = table_clean['DR3_source_id']
+            
+            final_table = Table(final_table)
+            
+            # Write the output table in the desired directory
+            name = final_table['name'][0]
+            final_table.write(f'{output_path}/{name}.{suffix}', format=output_format, overwrite=True)
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#
 
@@ -532,7 +576,13 @@ def plot_ind_lightcurves(file_name, ref_mjd=58190.45, y_ax='mag', outliers='medi
         ('BLACKGEM', 'r'):'orange',
         ('BLACKGEM', 'i'):'firebrick',
         ('BLACKGEM', 'z'):'sienna',
-        ('BLACKGEM', 'q'):'black'}
+        ('BLACKGEM', 'q'):'black',
+        ('MeerLICHT', 'u'):'purple',
+        ('MeerLICHT', 'g'):'skyblue',
+        ('MeerLICHT', 'r'):'orange',
+        ('MeerLICHT', 'i'):'firebrick',
+        ('MeerLICHT', 'z'):'sienna',
+        ('MeerLICHT', 'q'):'black'}
     
     plt.ioff()
     #data_files_names_only = file_name.split(".csv")[0]
