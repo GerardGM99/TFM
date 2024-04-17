@@ -20,9 +20,9 @@ import phot_utils # my own
 import seaborn as sns
 from astropy.timeseries import LombScargle
 import coord_utils # my own
-# from astroplan import EclipsingSystem
-# from astroplan import FixedTarget, Observer, is_observable, is_event_observable, PeriodicEvent
-# from astroplan import PhaseConstraint, AtNightConstraint, AltitudeConstraint, LocalTimeConstraint
+from astroplan import EclipsingSystem
+from astroplan import FixedTarget, Observer, is_observable, is_event_observable, PeriodicEvent
+from astroplan import PhaseConstraint, AtNightConstraint, AltitudeConstraint, LocalTimeConstraint
 import datetime as dt
 
 def standard_table(ins, lc_directory, asciicords, source_name, output_format='csv', suffix='csv'):
@@ -414,7 +414,7 @@ def remove_outliers(y, method='median', n_std=3):
     method: string, optional
         Method used to remove outliers. Either 'median' (removes points a 
         number of standard deviations away from the median), 'iqr' 
-        (InterQuartile Range) or 'eb' (removes points that exceed 10 times the 
+        (InterQuartile Range) or 'eb' (removes points that exceed 6 times the 
         IQR at the faint side, and 2 times at the bright side), or None to not 
         remove any outliers. The default is 'median'.
     n_std: float, optional
@@ -449,7 +449,7 @@ def remove_outliers(y, method='median', n_std=3):
         q3 = np.percentile(y, 75)
         median = np.median(y)
         iqr = q3 - q1
-        sigma = ((y-median > 0) & (y-median < 10*iqr)) | ((y-median < 0) & (median-y < 2*iqr))
+        sigma = ((y-median > 0) & (y-median < 6*iqr)) | ((y-median < 0) & (median-y < 2*iqr))
         
     if method==None:
         sigma = np.repeat(True, len(y))
@@ -615,12 +615,12 @@ def plot_ind_lightcurves(file_name, ref_mjd=58190.45, y_ax='mag', outliers='medi
         for band in available_filters:
             if y_ax=='mag':
                 # Remove outliers
-                sigma = remove_outliers(file['mag'][file['filter']==band], method=outliers, n_std=n_std)
+                #sigma = remove_outliers(file['mag'][file['filter']==band], method=outliers, n_std=n_std)
                                     
                 # Select time, magnitudes and magnitude errors
-                t_observed = np.array(file["mjd"][file['filter']==band])[sigma]
-                y_observed = np.array(file['mag'][file['filter']==band])[sigma]
-                uncert = np.array(file["magerr"][file['filter']==band])[sigma]
+                t_observed = np.array(file["mjd"][file['filter']==band])#[sigma]
+                y_observed = np.array(file['mag'][file['filter']==band])#[sigma]
+                uncert = np.array(file["magerr"][file['filter']==band])#[sigma]
                     
                 # Bin the data
                 if binsize > 0:
@@ -852,7 +852,7 @@ def lc_folding(name, time, y, uncert, best_freq, ax, t_start=None, cycles=1):
     '''
     
     # Remove outliers
-    sigma = remove_outliers(y, method='median')
+    sigma = remove_outliers(y, method='eb')
     
     time = np.array(time)[sigma]
     y = np.array(y)[sigma]
@@ -1133,12 +1133,12 @@ def next_transits(name, observing_time, eclipse_time, orbital_period, eclipse_du
     ----------
     name : string
         Name of the object to observe.
-    observing_time : string
+    observing_time : string or astropy.Time object
         Date ('yyyy-mm-dd hh-mm-ss') from which dates of transit are computed.
-    eclipse_time : string
+    eclipse_time : string or astropy.Time object
         Date ('yyyy-mm-dd hh-mm-ss') when a (primary) eclipse happened.
     orbital_period : float with units
-        Period of the elcipse, with units (astropy.units).
+        Period of the eclipse, with units (astropy.units).
     eclipse_duration : float with units, optional
         Duration of the eclipse. The default is None.
     eclipse_time_format : string, optional
@@ -1163,16 +1163,16 @@ def next_transits(name, observing_time, eclipse_time, orbital_period, eclipse_du
     system = EclipsingSystem(primary_eclipse_time=primary_eclipse_time,
                            orbital_period=orbital_period, duration=eclipse_duration,
                            name=name)
+    next_pe = system.next_primary_eclipse_time(observing_time, n_eclipses=n_eclipses)
+    next_se = system.next_secondary_eclipse_time(observing_time, n_eclipses=n_eclipses)
     
     if verbose:
         print(f'| Observing "{name}" at {observing_time} |')
         print('-----------------------------------------------------------------')
         print(f'Next {n_eclipses} primary eclipses:')
-        next_pe = system.next_primary_eclipse_time(observing_time, n_eclipses=n_eclipses)
         print(next_pe)
         print('-----------------------------------------------------------------')
         print(f'Next {n_eclipses} secondary eclipses:')
-        next_se = system.next_secondary_eclipse_time(observing_time, n_eclipses=n_eclipses)
         print(next_se)
         print('-----------------------------------------------------------------')
             
@@ -1230,11 +1230,11 @@ def observable(name, ra, dec, site_name, time_range, obs_date=None,
     phase_range : tuple, optional
         Check if the object is observable while in a phase between the two 
         values in the phase_range. The default is None.
-    event_time : string, optional
+    event_time : string or astropy.Time object, optional
         Date ('yyyy-mm-dd hh-mm-ss') when a an event happened. Only relevant if
         phase_range is set. The default is None.
     period : float with units, optional
-        Period of the elcipse, with units (astropy.units). Only relevant if
+        Period of the eclipse, with units (astropy.units). Only relevant if
         phase_range is set. The default is None.
     eclipse_time_format : string, optional
         Format of the elcipse_time.Only relevant if phase_range is set. The 
@@ -1327,11 +1327,11 @@ def observable_when(name, ra, dec, site_name, time_range, delta, phase_range=Non
     phase_range : tuple, optional
         Check if the object is observable while in a phase between the two 
         values in the phase_range. The default is None.
-    event_time : string, optional
+    event_time : string or astropy.Time object, optional
         Date ('yyyy-mm-dd hh-mm-ss') when a an event happened. Only relevant if
         phase_range is set. The default is None.
     period : float with units, optional
-        Period of the elcipse, with units (astropy.units). Only relevant if
+        Period of the eclipse, with units (astropy.units). Only relevant if
         phase_range is set. The default is None.
     eclipse_time_format : string, optional
         Format of the elcipse_time.Only relevant if phase_range is set. The 
@@ -1418,3 +1418,82 @@ def observable_when(name, ra, dec, site_name, time_range, delta, phase_range=Non
         print('---')
         print(f'The object {name} is obsevable during the following period(s):')
         return observable_dates
+    
+#---------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------#
+
+def oc_diagram(time, y, period, t_eclipse=None, y_eclipse=None, time_format='mjd'):
+    'THIS FUNCTION IS SHIT, ONLY USED TO SHOW THAT I CANNOT (?) DO AN OCD WITH MY LCS'
+    'IT IS JUST A FIRST APPROACH'
+    
+    # Remove outliers from the data
+    # sigma = remove_outliers(y, method='eb')
+    # time = time[sigma]
+    # y = y[sigma]
+    
+    # Set the eclipse time to the time when the maximum magnitude was observed
+    if t_eclipse is None:
+       t_eclipse = time[np.argmax(y)]
+    # Also set the magnitude value at primary mid-eclipse
+    if y_eclipse is None:
+        y_eclipse = y[np.argmax(y)]
+    
+    # Set parameters and units
+    time = Time(time, format=time_format)
+    period = period*u.d
+    mintime = Time(min(time))  # Starting time of the lightcurve
+    t_eclipse = Time(t_eclipse, format=time_format)  
+    n_eclipses = int((max(time)-min(time))/period)  # Number of eclipses in the time range given
+    
+    # Calculated eclipses
+    primary_eclipses, secondary_eclipses = next_transits('', mintime, t_eclipse, period, 
+                                                         n_eclipses=n_eclipses, verbose=False)
+        
+    # Slice the light curve, each slice contains one eclipse (primary or secondary)
+    # first_eclipse = primary_eclipses[0]
+    first_eclipse = primary_eclipses[0]
+    starting_point = first_eclipse - 0.25*period # We set this as a kind of phase=0, so each eclipse falls in the middle of the slice more or less
+    slice_size = period*0.5
+    oc = []
+    number_eclipses = []
+    #obs_secondary_eclipses = []
+    for i in range(len(primary_eclipses)):
+        slice_start = starting_point + i*period
+        slice_end = slice_start + slice_size
+        mask = (slice_start <= time)*(time <= slice_end)
+        if any(mask)==True:
+            y_min = max(y[mask])
+            min_index = np.where(y==y_min)[0][0]
+        else:
+            continue
+        # primary eclipse
+        #print(y[min_index])
+        if (y_eclipse-0.03 < y[min_index]) and (y[min_index] < y_eclipse+0.03):
+            y_to_fit = [y[min_index-2], y[min_index-1], y[min_index], 
+                        y[min_index+1], y[min_index+2]]
+            time_to_fit = [time[min_index-2].value, time[min_index-1].value, time[min_index].value, 
+                        time[min_index+1].value, time[min_index+2].value]
+            p = np.polyfit(time_to_fit,y_to_fit,2)
+            time_fit = np.linspace(time[min_index-2].value, time[min_index+2].value, 1000)
+            y_fit = np.polyval(p, time_fit)
+            oc.append(time_fit[np.argmax(y_fit)]-primary_eclipses[i].value)
+            number_eclipses.append(i)
+            
+            plt.figure(figsize=(8,8))
+            plt.scatter(time[mask].value, y[mask], s=5, c='b')
+            plt.plot(time_fit, y_fit, ls='--', color='r')
+            ax = plt.gca()
+            ax.invert_yaxis()
+            plt.show()
+            plt.close()
+    
+    sigma = remove_outliers(oc)
+    plt.figure(figsize=(8,8))
+    plt.scatter(np.array(number_eclipses)[sigma], np.array(oc)[sigma], s=10, c='black')
+    # plt.scatter(number_eclipses, oc, s=10, c='black')
+    plt.xlabel('Eclipse')
+    plt.ylabel('O-C (days)')
+    plt.show()
+    plt.close()
+    
+    return number_eclipses, oc

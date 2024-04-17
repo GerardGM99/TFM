@@ -5,8 +5,7 @@ Created on Tue Mar  5 13:49:06 2024
 @author: Gerard Garcia
 """
 
-# from gaiaxpy import convert, calibrate
-# from gaiaxpy import plot_spectra
+from gaiaxpy import convert, calibrate
 import matplotlib.pyplot as plt
 import matplotlib.transforms as transforms
 import pandas as pd
@@ -15,6 +14,7 @@ from PyAstronomy import pyasl
 from astropy.modeling import models
 from astropy.table import Table
 import astropy.units as u
+from astropy.io import fits
 from scipy.constants import h, c, k
 from math import pi
 from astroquery.gaia import Gaia
@@ -144,6 +144,25 @@ def Gaia_rvs(id_list, rv_table=None, plot=True, out_dir=None):
     # Output a dataframe with the x and y axis of each source's RVS
     out_df = pd.DataFrame({'IDs':source_ids, 'wavelenghts':x_axis, 'fluxes':y_axis})
     return out_df
+
+#---------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------#
+
+def cafos_spectra(input_filename):
+
+    data = fits.getdata(input_filename)
+    header = fits.getheader(input_filename)
+    
+    naxis2, naxis1 = data.shape
+    crpix1 = header['crpix1'] * u.pixel
+    cunit1 = 1 * u.Unit(header['cunit1'])
+    crval1 = header['crval1'] * u.Unit(cunit1)
+    cdelt1 = header['cdelt1'] * u.Unit(cunit1) / u.pixel
+    wavelength = crval1 + ((np.arange(naxis1) + 1)*u.pixel - crpix1) * cdelt1
+    
+    plt.figure()
+    plt.plot(wavelength, data[0])
+    plt.show()
 
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#
@@ -390,8 +409,7 @@ def rv_crosscorr(dx, dy, tx, ty, rvmin, rvmax, step, skipedge=0, plot=True):
 
     return rv[maxind], cc[maxind]
 
-#---------------------------------------------------------------------------------------------------------------#
-#---------------------------------------------------------------------------------------------------------------#
+
 
 def rv_crosscorr_err(n_boot, wl_range, n_points, lines, line_strenght, R, T, SNR, rv=[0], skipedge=20):
     '''

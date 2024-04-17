@@ -14,7 +14,7 @@ standard_table('MeerLICHT', 'data/ML_paul.csv', 'data/70_targets.csv', 'DR3_sour
 
 from lightcurve_utils import plot_lightcurves
 
-plot_lightcurves('MeerLICHT_lightcurves_std')
+plot_lightcurves('IRSA_ZTF_lightcurves_std', outliers='eb')
 
 #%%
 from Finker_script import use_finker
@@ -78,7 +78,7 @@ import numpy as np
 # lc_combined('Gaia DR3 2060841448854265216', [t1, t2, t3], [y1, y2, y3], [yerr1, yerr2, yerr3], [filt1, filt2, filt3], 
 #             0.016517, t_start=t_start)
 
-bulk_combine('5965503866703572480', ['ATLAS', 'ASAS_SN'], 2*3.278221)
+bulk_combine('2060841448854265216', ['ATLAS', 'IRSA_ZTF', 'ASAS_SN'], 1/60.545008)
 
 # plt.tight_layout()
 # plt.show()
@@ -197,11 +197,11 @@ _,_,_,_ = su.model_spectral_lines([6553, 6573], {'Ha':6563}, [0.8], 5000, 7000, 
 import coord_utils as cu
 from astropy.table import Table
 
-# random = Table.read('data/random_sources-result.vot', format="votable")
-# random = random.to_pandas()
+random = Table.read('data/random_sources-result.vot', format="votable")
+random = random.to_pandas()
 
-# mysources = Table.read('data/70_targets_coord.vot', format="votable")
-# mysources = mysources.to_pandas()
+mysources = Table.read('data/70_targets_coord.vot', format="votable")
+mysources = mysources.to_pandas()
 
 cu.sky_plot(random['ra'], random['dec'], projection=None, frame='icrs', density=True, label='bulk', s=10, cmap='inferno')
 ax1 = plt.gca()
@@ -210,18 +210,6 @@ cu.sky_plot(mysources['ra'], mysources['dec'],projection=None, frame='icrs', c='
 plt.tight_layout()
 plt.show()
 
-#%%
-from astropy.table import Table
-
-def convert_to_float(value):
-    if value == 'nan':
-        return np.nan
-    else:
-        return float(value)
-
-table = Table.read('data/gaia_rvs.csv', format='ascii.csv')
-# Convert 'flux' column to a list of floats, removing NaNs
-flux = [[convert_to_float(value) for value in row] for row in table['flux'][table['source_id']==473575777103322496][0]]
 
 #%%
 
@@ -285,14 +273,57 @@ for i in range(len(name)):
                starlist=None, print_starlist=True, telescope="Calar",
                directory="calar_finders", minmag=11, maxmag=13, mag=mag_transient[i],
                image_file=None)
-    
+
 #%%
-from finder_chart import get_finder
+import matplotlib.pyplot as plt
+from astropy.table import Table
+from astropy.time import Time
+import astropy.units as u
+from lightcurve_utils import next_transits
 
-get_finder(223.77534530000003, 46.7292828, "AT 2024gke", 3/60, debug=True,
-           starlist=None, print_starlist=True, telescope="Calar",
-           directory="calar_finders", minmag=11, maxmag=13, mag=18.26,
-           image_file=None)
+thing = Table.read('IRSA_ZTF_lightcurves_std/2006088484204609408.csv', format='ascii.csv')
+
+period = 2.596044
+y = thing['mag']
+time = Time(thing['mjd'], format='mjd')
+# Set the eclipse time to the time when the maximum magnitude was observed
+t_eclipse = time[np.argmax(y)]
+# Also set the magnitude value at primary mid-eclipse
+y_eclipse = y[np.argmax(y)]
+# The median of the y-values gives an estimate of the magnitude out of eclipse
+y_median = np.median(y)
 
 
-    
+period = period*u.d
+mintime = Time(min(time))  # Starting time of the lightcurve
+t_eclipse = Time(t_eclipse, format='mjd')  
+n_eclipses = int((max(time)-min(time))/period)
+
+# Calculated eclipses
+primary_eclipses, secondary_eclipses = next_transits('', mintime, t_eclipse, period, 
+                                                     n_eclipses=n_eclipses, verbose=False)
+
+plt.figure()
+plt.scatter(thing['mjd'], thing['mag'], s=5)
+for x in primary_eclipses.value:
+    plt.axvline(x, ls='-', alpha=0.5)
+plt.xlim(58250, 58275)
+plt.ylim(14.55, 14.1)
+plt.show()
+
+#%%
+
+from astropy.table import Table
+from lightcurve_utils import oc_diagram
+
+# tab = Table.read('IRSA_ZTF_lightcurves_std/2060841448854265216.csv', format='ascii.csv')
+# tab = Table.read('IRSA_ZTF_lightcurves_std/2006088484204609408.csv', format='ascii.csv')
+tab = Table.read('IRSA_ZTF_lightcurves_std/2166378312964576256.csv', format='ascii.csv')
+tab = tab[tab['filter']=='zr']
+
+time = tab['mjd']
+y = tab['mag']
+period = 72.430412
+
+# n, oc = oc_diagram(time, y, period)
+n, oc = oc_diagram(time, y, period, t_eclipse=58357.31640625, y_eclipse=15)
