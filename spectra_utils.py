@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import matplotlib.transforms as transforms
 import pandas as pd
 import numpy as np
+import os
 from PyAstronomy import pyasl
 from astropy.modeling import models
 from astropy.table import Table
@@ -19,6 +20,7 @@ from scipy.constants import h, c, k
 from math import pi
 from astroquery.gaia import Gaia
 from scipy.special import wofz
+from coord_utils import sky_xmatch
 
 def Gaia_XP(id_list, out_path=None, plot=False):
     '''
@@ -148,22 +150,63 @@ def Gaia_rvs(id_list, rv_table=None, plot=True, out_dir=None):
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#
 
-def cafos_spectra(input_filename):
-
-    data = fits.getdata(input_filename)
-    header = fits.getheader(input_filename)
+def cafos_spectra(input_filename, asciicords, calibration='flux', lines_file=None, plot=True, outdir=None):
     
-    naxis2, naxis1 = data.shape
-    crpix1 = header['crpix1'] * u.pixel
-    cunit1 = 1 * u.Unit(header['cunit1'])
-    crval1 = header['crval1'] * u.Unit(cunit1)
-    cdelt1 = header['cdelt1'] * u.Unit(cunit1) / u.pixel
-    wavelength = crval1 + ((np.arange(naxis1) + 1)*u.pixel - crpix1) * cdelt1
+    if asciicords is not None:
+        fits_file = input_filename.split(".")[0]+'.fits'
+        hdu = fits.open(fits_file)
+        ra = hdu[0].header['RA']
+        dec = hdu[0].header['DEC']
+        hdu.close()
+        
+        # Xmatch with the asciicoords file
+        table = Table({'ra':[ra], 'dec':[dec]})
+        table_coord = Table.read(asciicords, format='ascii.csv')
+        column_names = ['ra', 'dec', 'ra', 'dec', 'DR3_source_id']
+        xmatch_table = sky_xmatch(table, table_coord, 1800, column_names)
+        source_name = xmatch_table['Name'][0]
+    else:
+        source_name = os.path.basename(input_filename)
     
-    plt.figure()
-    plt.plot(wavelength, data[0])
-    plt.show()
+    fig, ax = plt.subplots(figsize=(12, 5))
+    if calibration == 'flux':
+        data = Table.read(input_filename, format='ascii')
+        
+        ax.plot(data['wavelength'], data['flux'], color='k')
+        plt.title(source_name, fontsize=16, weight='bold')
+    else:
+        data = fits.getdata(input_filename)
+        header = fits.getheader(input_filename)
+        
+        naxis2, naxis1 = data.shape
+        crpix1 = header['crpix1'] * u.pixel
+        cunit1 = 1 * u.Unit(header['cunit1'])
+        crval1 = header['crval1'] * u.Unit(cunit1)
+        cdelt1 = header['cdelt1'] * u.Unit(cunit1) / u.pixel
+        wavelength = crval1 + ((np.arange(naxis1) + 1)*u.pixel - crpix1) * cdelt1
 
+        ax.plot(wavelength.to(u.Angstrom), data[0], color='k')
+        plt.title(source_name+', NO standard flux calibrated!', fontsize=16, weight='bold')
+    
+    if lines_file is not None:
+        trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
+        lines = Table.read(lines_file, format='ascii')
+        for line, wl in zip(lines['line'], lines['wavelenght']):
+            ax.axvline(wl, ls='--', alpha=0.5)
+            plt.text(wl+11, 0.95, line, transform = trans, fontdict={'fontsize':12})
+    
+    ax.set_xlabel('Wavelength (Angstrom)', fontsize=15)
+    ax.set_ylabel('Flux (number of counts)', fontsize=15)
+    ax.set_xticks(np.arange(3500, 9501, 500))
+    ax.set_xlim(left=3500, right=9501)
+    ax.tick_params(axis='both', which='major', labelsize=14)
+    
+    if plot:
+        plt.tight_layout()
+        plt.show()
+        
+    if outdir is not None:
+        plt.savefig(f'{outdir}/{source_name}.png', bbox_inches = "tight", format = "png")
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#
 

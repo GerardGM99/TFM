@@ -61,7 +61,7 @@ def hour2deg(ra, dec):
 #---------------------------------------------------------------------------------------------------------------#
 
 
-def sky_xmatch(table1, table2, radius, column_names, read=False):
+def sky_xmatch(table1, table2, radius, column_names):
     '''
     Sky cross match two tables. First table is the main one, second table only
     needs to contain coordinates (ra, dec) and a name/id for the sources.
@@ -72,7 +72,7 @@ def sky_xmatch(table1, table2, radius, column_names, read=False):
         Main table. Needs to contain at least coordinates in (ra, dec). Either
         the astropy table directly or a path to the csv of the table.
     table2: astropy.Table or string
-        Table to sky crossmatch table1 to. Needs to contain at least 
+        Table to sky crossmatch table1. Needs to contain at least 
         coordinates in (ra, dec) and a name/id of the source. Either the 
         astropy table directly or a path to the csv of the table.
     radius: float
@@ -85,9 +85,6 @@ def sky_xmatch(table1, table2, radius, column_names, read=False):
         coordinate columns in table2, and 5th item should be the name of the
         column with the name/id of the sources. An example could be:
             column_names = ['ra', 'dec', 'ra', 'dec', 'DR3_source_id']
-    read: boolean, optional
-        False (default) if the astropy tables are given directly, True if the
-        path to the tables are given and need to be read.
 
     Returns
     -------
@@ -96,9 +93,10 @@ def sky_xmatch(table1, table2, radius, column_names, read=False):
         with the cross matched names/ids in table2.
 
     '''
-    # Read both files if read=True
-    if read is True:
+    # Read both files if path is given
+    if type(table1) == str:
         table1 = Table.read(table1, format='ascii.csv')
+    if type(table2) == str:
         table2 = Table.read(table2, format='ascii.csv') #Table with the name of the sources
     
     # Names of the columns with RA, DEC and the NAME of the source
@@ -113,9 +111,10 @@ def sky_xmatch(table1, table2, radius, column_names, read=False):
     coords_table2 = SkyCoord(ra=table2[ra_col2], dec=table2[dec_col2], unit='deg')
     
     # Create additional column to put the names/ids with the correct format
-    table1.add_column('', name='Name', index=0)
-    convert_column = table1['Name'].astype('U25')
-    table1.replace_column('Name', convert_column)
+    new_table = table1
+    new_table.add_column('', name='Name', index=0)
+    convert_column = new_table['Name'].astype('U25')
+    new_table.replace_column('Name', convert_column)
     
     # Maximum separation allowed
     max_sep = radius * u.arcsec  
@@ -125,9 +124,9 @@ def sky_xmatch(table1, table2, radius, column_names, read=False):
         source_coord = coords_table2[idx2]
         # Find matches in table1 for the current source in table2
         sep_constraint = coords_table1.separation(source_coord) < max_sep
-        matching_rows = table1[sep_constraint]
+        matching_rows = new_table[sep_constraint]
         if len(matching_rows) > 0:
-            table1['Name'][sep_constraint] = source_name
+            new_table['Name'][sep_constraint] = source_name
     
     # ANOTHER METHOD I SHOULD EXPLORE BUT I DON'T HAVE TIME. FOR NOW IT KINDA
     # WORKS BUT THE XMATCHED TABLE ONLY HAS COORDINATES AND NAME (IT'S NOT A
@@ -147,7 +146,7 @@ def sky_xmatch(table1, table2, radius, column_names, read=False):
     # df = t12.to_pandas()
     
     
-    return table1
+    return new_table
 
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#

@@ -327,3 +327,77 @@ period = 72.430412
 
 # n, oc = oc_diagram(time, y, period)
 n, oc = oc_diagram(time, y, period, t_eclipse=58357.31640625, y_eclipse=15)
+
+#%%
+
+from astropy.table import Table
+import matplotlib.pyplot as plt
+import numpy as np
+# from scipy.constants import c
+
+table = Table.read('YSOs_mag_allwise.vot')
+# mask = (table['FH']<20)*(table['FJ']<20)*(table['FK']<20)
+# table = table[mask]
+
+name = 'IRAS 02236+7224'
+plt.figure(figsize=(8,5))
+color=['k', 'b', 'orange', 'g', 'y']
+cla = list(set(table['Class']))
+cla.sort()
+clas_label = ['Class 0/I', 'Class II', 'Class III', 'Flat Spectrum', 'Transition Disk']
+for i, clas in  enumerate(cla):
+    mask = table['Class']==clas
+    # plt.scatter(table['Hmag'][mask]-table['Kmag'][mask], table['Jmag'][mask]-table['Hmag'][mask], s=10, color=color[i], label=clas_label[i])
+    plt.scatter(table['_5.8mag'][mask]-table['W3mag'][mask], table['W1mag'][mask]-table['W2mag'][mask], s=10, color=color[i], label=clas_label[i])
+plt.scatter(6.188-3.978,7.559-6.628, s=80, marker='*', color='r', label=name)
+# plt.xlabel('H - K', fontsize=14)
+# plt.ylabel('J - H', fontsize=14)
+# plt.xlabel('[5.8] - [8.0]', fontsize=14)
+# plt.ylabel('[3.6] - [4.5]', fontsize=14)
+plt.xlabel('[5.8] - W3 [12.0]', fontsize=14)
+plt.ylabel('W1 [3.4] - W2 [4.6]', fontsize=14)
+plt.title(f'Color-Color diagram, {name}', fontsize=15, weight='bold')
+plt.tick_params(axis='both', labelsize=12)
+plt.legend(fontsize=11, loc='upper left')
+plt.show()
+
+# tab = Table.read('SED_IRAS 05450+0019.csv', format='ascii.csv')
+# tab = tab[(~np.isnan(tab['_sed_flux']))*(~np.isnan(tab['_sed_freq']))]
+
+# wl = np.log10(1e6*c/(tab['_sed_freq']*1e9))
+# y = np.log10(tab['_sed_flux']*(tab['_sed_freq']*1e9))
+# yerr = tab['_sed_eflux']*(tab['_sed_freq']*1e9)/(tab['_sed_flux']*(tab['_sed_freq']*1e9))
+
+# fit_mask = (np.log10(2)<wl) * (wl<np.log10(25)) * (~np.isnan(y))
+# a, b = np.polyfit(wl[fit_mask],y[fit_mask], 1)
+# x_fit = np.linspace(np.log10(2), np.log10(25), 200)
+# y_fit = np.polyval([a,b], x_fit)
+
+# plt.figure(figsize=(8,5))
+# plt.errorbar(wl, y, yerr=yerr, fmt='o',ecolor='black', capsize=2, elinewidth=2,
+#              markersize=6, markeredgewidth=0.5, alpha=0.8, color='black', mec='black')
+# plt.plot(x_fit, y_fit, color='lime', label=fr'$\alpha = {a:.3f}$')
+# plt.axvline(np.log10(2), ls=(0,(5, 5)), color='r')
+# plt.axvline(np.log10(25), ls=(0,(5, 5)), color='r')
+# plt.xlim(0,2.3)
+# plt.ylim(12,15)
+# plt.title('SED, IRAS 05450+0019', fontsize=15, weight='bold')
+# plt.xlabel(r'$log \lambda (\mu m)$', fontsize=14)
+# plt.ylabel(r'log $\nu F_{\nu} \; (Jy \; Hz)$', fontsize=14)
+# plt.tick_params(axis='both', labelsize=12)
+# plt.grid()
+# plt.tight_layout()
+# plt.legend(loc='lower right', fontsize=14)
+# plt.show()
+
+#%%
+
+from spectra_utils import cafos_spectra
+import os
+
+directory = 'data/cafos_spectra'
+files = os.listdir(directory)
+
+for file in files:
+    if file.endswith('.txt'):
+        cafos_spectra(f'{directory}/{file}', 'data/70_targets.csv', lines_file='data/spectral_lines.txt', plot=None, outdir='SPECTRA/cafos_spectra')

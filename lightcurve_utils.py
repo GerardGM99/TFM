@@ -1423,7 +1423,7 @@ def observable_when(name, ra, dec, site_name, time_range, delta, phase_range=Non
 #---------------------------------------------------------------------------------------------------------------#
 
 def oc_diagram(time, y, period, t_eclipse=None, y_eclipse=None, time_format='mjd'):
-    'THIS FUNCTION IS SHIT, ONLY USED TO SHOW THAT I CANNOT (?) DO AN OCD WITH MY LCS'
+    'THIS FUNCTION IS SHIT, ONLY USED TO SHOW THAT I CANNOT (?) DO AN OCD WITH MY LCs'
     'IT IS JUST A FIRST APPROACH'
     
     # Remove outliers from the data
