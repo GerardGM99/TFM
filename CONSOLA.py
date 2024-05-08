@@ -50,35 +50,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-# table = pd.read_csv('irsa_ztf_lightcurves_std/2060841448854265216.csv')
-# band1=list(set(table['filter']))[0]
-# t1= table['mjd'].loc[table['filter']==band1]
-# y1=table['mag'].loc[table['filter']==band1]
-# yerr1=table['magerr'].loc[table['filter']==band1]
-# min_index = np.argmax(y1)
-# t_start = t1.iloc[min_index]
-# filt1 = table['inst'][0] + ', ' + band1
-
-# # table = pd.read_csv('ztf_lightcurves_std/460686648965862528.csv')
-# table = pd.read_csv('irsa_ztf_lightcurves_std/2060841448854265216.csv')
-# band2=list(set(table['filter']))[1]
-# t2= table['mjd'].loc[table['filter']==band2]
-# y2=table['mag'].loc[table['filter']==band2]
-# yerr2=table['magerr'].loc[table['filter']==band2]
-# filt2 = table['inst'][0] + ', ' + band2
-
-# # table = pd.read_csv('ztf_lightcurves_std/460686648965862528.csv')
-# table = pd.read_csv('irsa_ztf_lightcurves_std/2060841448854265216.csv')
-# band3=list(set(table['filter']))[2]
-# t3= table['mjd'].loc[table['filter']==band3]
-# y3=table['mag'].loc[table['filter']==band3]
-# yerr3=table['magerr'].loc[table['filter']==band3]
-# filt3 = table['inst'][0] + ', ' + band3
-
-# lc_combined('Gaia DR3 2060841448854265216', [t1, t2, t3], [y1, y2, y3], [yerr1, yerr2, yerr3], [filt1, filt2, filt3], 
-#             0.016517, t_start=t_start)
-
-bulk_combine('2060841448854265216', ['ATLAS', 'IRSA_ZTF', 'ASAS_SN'], 1/60.545008)
+bulk_combine('6123873398383875456', ['ASAS-SN'], 24/(19.0433664), cycles=2, outliers='eb')
 
 # plt.tight_layout()
 # plt.show()
@@ -89,11 +61,11 @@ import pandas as pd
 import astropy.units as u
 from lightcurve_utils import lomb_scargle
 
-table = pd.read_csv('ztf_lightcurves_std/2061252975440642816.csv')
+table = pd.read_csv('ASAS-SN_lightcurves_std/2002117151282819840.csv')
 #band=list(set(table['filter']))[0]
-t = np.array(table['mjd'].loc[table['filter']=='zg']) * u.day
-y = np.array(table['mag'].loc[table['filter']=='zg']) * u.mag
-yerr = np.array(table['magerr'].loc[table['filter']=='zg']) * u.mag
+t = np.array(table['mjd'].loc[table['filter']=='V']) * u.day
+y = np.array(table['mag'].loc[table['filter']=='V']) * u.mag
+yerr = np.array(table['magerr'].loc[table['filter']=='V']) * u.mag
 
 # frequency, power = LombScargle(t, y, dy=yerr).autopower(minimum_frequency=0.001/u.d,
 #                                                         maximum_frequency=100/u.d)
@@ -105,7 +77,7 @@ yerr = np.array(table['magerr'].loc[table['filter']=='zg']) * u.mag
 # plt.plot(frequency, power)
 # plt.show()
 
-lomb_scargle(t, y, yerr, fmin=100, fmax=300, plot=True)
+lomb_scargle(t, y, yerr, fmin=0.01, fmax=20, plot=True)
 
 #%%
 
@@ -316,17 +288,21 @@ plt.show()
 from astropy.table import Table
 from lightcurve_utils import oc_diagram
 
-# tab = Table.read('IRSA_ZTF_lightcurves_std/2060841448854265216.csv', format='ascii.csv')
+tab = Table.read('IRSA_ZTF_lightcurves_std/2060841448854265216.csv', format='ascii.csv') 
+period = 60.545008
+# tab = Table.read('IRSA_ZTF_lightcurves_std/2061252975440642816.csv', format='ascii.csv') 
+# period = 2.139183
 # tab = Table.read('IRSA_ZTF_lightcurves_std/2006088484204609408.csv', format='ascii.csv')
-tab = Table.read('IRSA_ZTF_lightcurves_std/2166378312964576256.csv', format='ascii.csv')
+# period = 2.596044
+
 tab = tab[tab['filter']=='zr']
 
 time = tab['mjd']
 y = tab['mag']
-period = 72.430412
+
 
 # n, oc = oc_diagram(time, y, period)
-n, oc = oc_diagram(time, y, period, t_eclipse=58357.31640625, y_eclipse=15)
+n, oc = oc_diagram(time, y, period)
 
 #%%
 
@@ -393,6 +369,7 @@ plt.show()
 #%%
 
 from spectra_utils import cafos_spectra
+from spectra_utils import lamost_spectra
 import os
 
 directory = 'data/cafos_spectra'
@@ -400,4 +377,94 @@ files = os.listdir(directory)
 
 for file in files:
     if file.endswith('.txt'):
-        cafos_spectra(f'{directory}/{file}', 'data/70_targets.csv', lines_file='data/spectral_lines.txt', plot=None, outdir='SPECTRA/cafos_spectra')
+        cafos_spectra(f'{directory}/{file}', 'data/TFM_table.csv', lines_file='data/spectral_lines.txt', plot=True, dered=True)
+        # lamost_spectra(f'{directory}/{file}', 'data/70_targets.csv', lines_file=None, plot=False, outdir='SPECTRA/LAMOST_spectra')
+        
+#%%
+
+from urllib.request import urlopen
+from urllib.request import urlretrieve
+from urllib import request
+
+import sys
+import numpy as np
+import os
+from astropy.table import Table
+
+coords = Table.read('data/70_targets.csv')
+
+# ra_list = []
+# dec_list = []
+# object_id = []
+# source_id = []
+newcat = np.zeros(len(coords), dtype=[("object_id", int), ("ra", np.double), ("dec", np.double)])
+k = 0
+for ra, dec in zip(coords['ra'], coords['dec']):
+    radius_deg = 0.000555
+    url = "https://skymapper.anu.edu.au/sm-cone/public/query?RA=%.6f&DEC=%.6f&SR=%.6f&RESPONSEFORMAT=CSV"%(ra, dec, radius_deg)
+    
+    f = open("/tmp/skymapper_cat.csv", "wb")
+    page = urlopen(url)
+    content = page.read()
+    f.write(content)
+    f.close()
+    
+    catalog = Table.read("/tmp/skymapper_cat.csv", format="ascii.csv")
+    
+    if len(catalog)>0:
+        newcat["ra"][k] = catalog["raj2000"][0]
+        newcat["dec"][k] = catalog["dej2000"][0]
+        newcat["object_id"][k] = catalog["object_id"][0]
+    k += 1
+    
+    # ra_list.append(catalog["raj2000"])
+    # dec_list.append(catalog["dej2000"])
+    # object_id.append(catalog["object_id"])
+    # source_id.append(ide)
+
+#%%
+
+from astroquery.alma.core import Alma
+from astropy import coordinates
+from astropy import units as u
+import pandas as pd
+
+coords = pd.read_csv('data/70_targets.csv')
+
+results = []
+id = []
+alma = Alma()
+for ra, dec, name in zip(coords['ra'], coords['dec'], coords['DR3_source_id']):
+    target = coordinates.SkyCoord(ra, dec, frame='icrs', unit=(u.deg, u.deg))
+    res = alma.query_region(target, 1/60*u.deg)
+    if len(res)>0:
+        results.append(res)
+        id.append(name)
+        
+#%%
+
+import astropy.units as u
+from astropy.coordinates import SkyCoord
+from astroquery.gaia import Gaia
+import pandas as pd
+
+Gaia.MAIN_GAIA_TABLE = "gaiadr3.gaia_source"
+
+coords = pd.read_csv('data/70_targets.csv')
+
+results = []
+id = []
+design = []
+for ra, dec, name in zip(coords['ra'], coords['dec'], coords['DR3_source_id']):
+    target = coordinates.SkyCoord(ra, dec, frame='icrs', unit=(u.deg, u.deg))
+    j = Gaia.cone_search_async(target, radius=u.Quantity(10/3600, u.deg))
+    res = j.get_results()
+    if len(res)>2:
+        results.append('Yes')
+    else:
+        results.append('No')
+    id.append(name)
+    design.append(res[0]['DESIGNATION'])
+    
+df = pd.DataFrame({'name':id, 'Designation':design, 'Crowded':results})
+df.to_csv('data/crowded.csv')

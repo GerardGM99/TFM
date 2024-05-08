@@ -21,6 +21,7 @@ from math import pi
 from astroquery.gaia import Gaia
 from scipy.special import wofz
 from coord_utils import sky_xmatch
+from extinction import fitzpatrick99, remove
 
 def Gaia_XP(id_list, out_path=None, plot=False):
     '''
@@ -150,7 +151,7 @@ def Gaia_rvs(id_list, rv_table=None, plot=True, out_dir=None):
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#
 
-def cafos_spectra(input_filename, asciicords, calibration='flux', lines_file=None, plot=True, outdir=None):
+def cafos_spectra(input_filename, asciicords, calibration='flux', dered=False, lines_file=None, plot=True, outdir=None):
     
     if asciicords is not None:
         fits_file = input_filename.split(".")[0]+'.fits'
@@ -162,7 +163,7 @@ def cafos_spectra(input_filename, asciicords, calibration='flux', lines_file=Non
         # Xmatch with the asciicoords file
         table = Table({'ra':[ra], 'dec':[dec]})
         table_coord = Table.read(asciicords, format='ascii.csv')
-        column_names = ['ra', 'dec', 'ra', 'dec', 'DR3_source_id']
+        column_names = ['ra', 'dec', 'RA', 'DEC', 'Gaia source ID']
         xmatch_table = sky_xmatch(table, table_coord, 1800, column_names)
         source_name = xmatch_table['Name'][0]
     else:
@@ -172,8 +173,16 @@ def cafos_spectra(input_filename, asciicords, calibration='flux', lines_file=Non
     if calibration == 'flux':
         data = Table.read(input_filename, format='ascii')
         
-        ax.plot(data['wavelength'], data['flux'], color='k')
-        plt.title(source_name, fontsize=16, weight='bold')
+        if dered:
+            #'deredden' flux using Fitzpatrick (1999)
+            Av = table_coord['$A_V$'][table_coord['Gaia source ID']==int(source_name)][0]
+            flux = remove(fitzpatrick99(np.array(data['wavelength']), Av, 3.1), np.array(data['flux']))
+            plt.title(f'{source_name}, CAFOS dereddened Low res spectrum, $A_v$ = {Av}', fontsize=16, weight='bold')
+        else:
+            flux = data['flux']
+            plt.title(source_name+', CAFOS Low res spectrum', fontsize=16, weight='bold')
+        
+        ax.plot(data['wavelength'], flux, color='k')
     else:
         data = fits.getdata(input_filename)
         header = fits.getheader(input_filename)
@@ -206,7 +215,168 @@ def cafos_spectra(input_filename, asciicords, calibration='flux', lines_file=Non
         plt.show()
         
     if outdir is not None:
-        plt.savefig(f'{outdir}/{source_name}.png', bbox_inches = "tight", format = "png")
+        if dered:
+            plt.savefig(f'{outdir}/{source_name}_dereddened.png', bbox_inches = "tight", format = "png")
+        else:
+            plt.savefig(f'{outdir}/{source_name}.png', bbox_inches = "tight", format = "png")
+        
+        
+def lamost_spectra(input_filename, asciicords, lines_file=None, plot=True, outdir=None):
+    
+    hdu = fits.open(input_filename)
+    ra = hdu[0].header['RA']
+    dec = hdu[0].header['DEC']
+    date = hdu[0].header['MJD']
+    if os.path.basename(input_filename).startswith('med'):
+        resolu = 'Med. res.'
+    else:
+        resolu = 'Low res.'
+       
+    if asciicords is not None:
+        # Xmatch with the asciicoords file
+        table = Table({'ra':[ra], 'dec':[dec]})
+        table_coord = Table.read(asciicords, format='ascii.csv')
+        column_names = ['ra', 'dec', 'ra', 'dec', 'DR3_source_id']
+        xmatch_table = sky_xmatch(table, table_coord, 1800, column_names)
+        source_name = xmatch_table['Name'][0]
+    else:
+        source_name = hdu[0].header['OBJNAME']
+    
+    if resolu ==  'Low res.':
+        data = hdu[1].data
+        hdr = hdu[1].header
+        
+        fig, ax = plt.subplots(figsize=(12, 5))
+           
+        ax.plot(data['WAVELENGTH'][0], data['FLUX'][0], color='k')
+        plt.title(f'{source_name}, LAMOST {resolu} spectrum', fontsize=16, weight='bold')
+            
+        if lines_file is not None:
+            trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
+            lines = Table.read(lines_file, format='ascii')
+            for line, wl in zip(lines['line'], lines['wavelenght']):
+                ax.axvline(wl, ls='--', alpha=0.5)
+                plt.text(wl+11, 0.95, line, transform = trans, fontdict={'fontsize':12})
+            
+        ax.set_xlabel('Wavelength (Angstrom)', fontsize=15)
+        ax.set_ylabel('Flux (number of counts)', fontsize=15)
+        ax.set_xticks(np.arange(3500, 9501, 500))
+        ax.set_xlim(left=3500, right=9501)
+        ax.tick_params(axis='both', which='major', labelsize=14)
+            
+        if plot:
+            plt.tight_layout()
+            plt.show()
+                
+        if outdir is not None:
+            output_path = f'{outdir}/LAMOST-L_spectra'
+            if not os.path.isdir(output_path):
+                os.makedirs(output_path)
+            plt.savefig(f'{output_path}/{source_name}_{resolu}_{date}MJD.png', bbox_inches = "tight", format = "png")
+        plt.close()
+    
+    elif resolu == 'Med. res.':
+        single_exposures_B = []
+        se_names_B = []
+        single_exposures_R = []
+        se_names_R = []
+        for i in range(1, len(hdu)):
+            data = hdu[i].data
+            hdr = hdu[i].header
+            band = hdr['EXTNAME']
+            
+            if band.startswith('COADD'):
+                fig, ax = plt.subplots(figsize=(12, 5))
+                   
+                ax.plot(data['WAVELENGTH'][0], data['FLUX'][0], color='k')
+                plt.title(f'{source_name}-{band}, LAMOST {resolu} spectrum', fontsize=16, weight='bold')
+                    
+                if lines_file is not None:
+                    trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
+                    lines = Table.read(lines_file, format='ascii')
+                    for line, wl in zip(lines['line'], lines['wavelenght']):
+                        ax.axvline(wl, ls='--', alpha=0.5)
+                        plt.text(wl+11, 0.95, line, transform = trans, fontdict={'fontsize':12})
+                    
+                ax.set_xlabel('Wavelength (Angstrom)', fontsize=15)
+                ax.set_ylabel('Flux (number of counts)', fontsize=15)
+                if band == 'COADD_B':
+                    ax.set_xticks(np.arange(4900, 5401, 50))
+                    ax.set_xlim(left=4850, right=5401)
+                elif band == 'COADD_R':
+                    ax.set_xticks(np.arange(6200, 6900, 50))
+                    ax.set_xlim(left=6200, right=6901)
+                ax.tick_params(axis='both', which='major', labelsize=14)
+                    
+                if plot:
+                    plt.tight_layout()
+                    plt.show()
+                        
+                if outdir is not None:
+                    output_path = f'{outdir}/LAMOST-M_spectra'
+                    if not os.path.isdir(output_path):
+                        os.makedirs(output_path)
+                    plt.savefig(f'{output_path}/{source_name}_{resolu}_{band}_{date}MJD.png', bbox_inches = "tight", format = "png")
+                plt.close()
+            
+            elif band.startswith('B'):
+                single_exposures_B.append(data)
+                se_names_B.append(band)
+            elif band.startswith('R'):
+                single_exposures_R.append(data)
+                se_names_R.append(band)
+        
+        # Single exposures band B
+        fig, ax = plt.subplots(figsize=(12, 5))
+        
+        for spec, spec_name in zip(single_exposures_B, se_names_B):
+            ax.plot(spec['WAVELENGTH'][0], spec['FLUX'][0], label=spec_name)
+        
+        plt.title(f'{source_name}, Single exposures LAMOST {resolu} spectra', fontsize=16, weight='bold')
+        ax.set_xlabel('Wavelength (Angstrom)', fontsize=15)
+        ax.set_ylabel('Flux (number of counts)', fontsize=15)
+        ax.set_xticks(np.arange(4900, 5401, 50))
+        ax.set_xlim(left=4850, right=5401)
+        ax.tick_params(axis='both', which='major', labelsize=14)
+        plt.legend(loc='upper left', fontsize=15)
+        
+        if plot:
+            plt.tight_layout()
+            plt.show()
+                
+        if outdir is not None:
+            output_path = f'{outdir}/LAMOST-M_spectra'
+            if not os.path.isdir(output_path):
+                os.makedirs(output_path)
+            plt.savefig(f'{output_path}/{source_name}_B_{date}MJD.png', bbox_inches = "tight", format = "png")
+        plt.close()
+        
+        # Single exposures band R
+        fig, ax = plt.subplots(figsize=(12, 5))
+        
+        for spec, spec_name in zip(single_exposures_R, se_names_R):
+            ax.plot(spec['WAVELENGTH'][0], spec['FLUX'][0], label=spec_name)
+        
+        plt.title(f'{source_name}, Single exposures LAMOST {resolu} spectra', fontsize=16, weight='bold')
+        ax.set_xlabel('Wavelength (Angstrom)', fontsize=15)
+        ax.set_ylabel('Flux (number of counts)', fontsize=15)
+        ax.set_xticks(np.arange(6200, 6900, 50))
+        ax.set_xlim(left=6200, right=6901)
+        ax.tick_params(axis='both', which='major', labelsize=14)
+        plt.legend(loc='upper left', fontsize=15)
+        
+        if plot:
+            plt.tight_layout()
+            plt.show()
+                
+        if outdir is not None:
+            output_path = f'{outdir}/LAMOST-M_spectra'
+            if not os.path.isdir(output_path):
+                os.makedirs(output_path)
+            plt.savefig(f'{output_path}/{source_name}_R_{date}MJD.png', bbox_inches = "tight", format = "png")
+        plt.close()
+        
+    hdu.close()
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#
 

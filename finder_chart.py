@@ -89,7 +89,7 @@ def query_sky_mapper_catalogue(ra, dec, radius_deg, minmag=8, maxmag=18.5):
     Sends a VO query to the SkyMapper catalogue.
     '''
     
-    url = "http://skymapper.anu.edu.au/sm-cone/query?RA=%.6f&DEC=%.6f&SR=%.4f&RESPONSEFORMAT=CSV"%(ra, dec, radius_deg)
+    url = "https://skymapper.anu.edu.au/sm-cone/public/query?RA=%.6f&DEC=%.6f&SR=%.6f&RESPONSEFORMAT=CSV"%(ra, dec, radius_deg)
 
     f = open("/tmp/skymapper_cat.csv", "wb")
     page = urlopen(url)

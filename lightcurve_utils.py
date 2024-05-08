@@ -10,6 +10,7 @@ from astropy.table import Table
 from astropy.time import Time
 from astropy.time import TimeDelta
 from astropy.coordinates import SkyCoord
+from astropy.io import fits
 import astropy.units as u
 import numpy as np
 import pandas as pd
@@ -24,6 +25,9 @@ from astroplan import EclipsingSystem
 from astroplan import FixedTarget, Observer, is_observable, is_event_observable, PeriodicEvent
 from astroplan import PhaseConstraint, AtNightConstraint, AltitudeConstraint, LocalTimeConstraint
 import datetime as dt
+import tglc
+from tglc.quick_lc import tglc_lc
+import pickle
 
 def standard_table(ins, lc_directory, asciicords, source_name, output_format='csv', suffix='csv'):
     '''
@@ -400,6 +404,37 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
             # Write the output table in the desired directory
             name = final_table['name'][0]
             final_table.write(f'{output_path}/{name}.{suffix}', format=output_format, overwrite=True)
+            
+#---------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------#
+
+def tess_lglc(ide, target, save_dir):
+    # target: TIC ID (preferred, 'TIC 12345678'), Target ID ('TOI 519') or coordinates ('ra dec')
+    local_directory = f'{save_dir}/{ide}/'    # directory to save all files
+    os.makedirs(local_directory, exist_ok=True)
+    
+#   tglc_lc(target=target, 
+#         local_directory=local_directory, 
+#         size=50, # FFI cutsize. Recommand at least 50 or larger for better performance. Cannot exceed 99. 
+#                  # Downloading FFI might take longer (or even cause timeouterror) for larger sizes. 
+#         save_aper=True, # whether to save 5*5 pixels timeseries of the decontaminated images in fits file primary HDU
+#         limit_mag=13, # the TESS magnitude lower limit of stars to output
+#         get_all_lc=False, # whether to return all lcs in the region. If False, return the nearest star to the target coordinate
+#         first_sector_only=True, # whether to return only lcs from the sector this target was first observed. 
+#                                 # If False, return all sectors of the target, but too many sectors could be slow to download.
+#         last_sector_only=False, # whether to return only lcs from the sector this target was last observed. 
+#         sector=None, # If first_sector_only = True or last_sector_only = True and type(sector) != int, return first or last sector.
+#                      # If first(last)_sector_only=False and sector = None, return all observed sectors
+#                      # If first(last)_sector_only=False and type(sector) == int, return only selected sector. 
+#                      # (Make sure only put observed sectors. All available sectors are printed in the sector table.)
+#         prior=None)  # If None, does not allow all field stars to float. SUGGESTED for first use. 
+#                      # If float (usually <1), allow field stars to float with a Gaussian prior with the mean 
+#                      # at the Gaia predicted value the width of the prior value multiplied on the Gaia predicted value.
+    
+    tglc_lc(target=target, local_directory=local_directory, size=40, save_aper=True, limit_mag=13, 
+            get_all_lc=False, first_sector_only=False, sector=None, prior=None)
+    
+    
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#
 
@@ -449,7 +484,7 @@ def remove_outliers(y, method='median', n_std=3):
         q3 = np.percentile(y, 75)
         median = np.median(y)
         iqr = q3 - q1
-        sigma = ((y-median > 0) & (y-median < 6*iqr)) | ((y-median < 0) & (median-y < 2*iqr))
+        sigma = ((y-median > 0) & (y-median < 10*iqr)) | ((y-median < 0) & (median-y < 2*iqr))
         
     if method==None:
         sigma = np.repeat(True, len(y))
@@ -471,8 +506,8 @@ def plot_lightcurves(lc_dir, ref_mjd=58190.45, y_ax='mag', outliers='median', n_
     
     Parameters
     ----------
-    file: string
-        File with the light curve data
+    lc_dir: string
+        Directory where the light curve files are stored
     ref_mjd: float, optional
         Reference time given that the imput times are in MJD. The 58519.45
         that is setup coincides with the start of ZTF observations.
@@ -667,7 +702,7 @@ def plot_ind_lightcurves(file_name, ref_mjd=58190.45, y_ax='mag', outliers='medi
                 ax.set_ylabel("Flux", family = "serif", fontsize = 16)
                     
                     
-        ax.set_title(f"Gaia DR3 {source_name}", weight = "bold")
+        ax.set_title(f"{source_name}", weight = "bold") # Gaia DR3 
         ax.set_xlabel(f"MJD - {ref_mjd} [days]", family = "serif", fontsize = 16)
         ax.tick_params(which='major', width=2, direction='out')
         ax.tick_params(which='major', length=7)
@@ -822,7 +857,7 @@ def vel_period_mass(m1, q, P, t_scale='days', e=0, plot=True):
 #---------------------------------------------------------------------------------------------------------------#
 
 
-def lc_folding(name, time, y, uncert, best_freq, ax, t_start=None, cycles=1):
+def lc_folding(name, time, y, uncert, best_freq, ax, t_start=None, cycles=1, outliers='eb'):
     '''
     Folds given light curve at a certain frequency.
     
@@ -852,7 +887,7 @@ def lc_folding(name, time, y, uncert, best_freq, ax, t_start=None, cycles=1):
     '''
     
     # Remove outliers
-    sigma = remove_outliers(y, method='eb')
+    sigma = remove_outliers(y, method=outliers)
     
     time = np.array(time)[sigma]
     y = np.array(y)[sigma]
@@ -875,20 +910,20 @@ def lc_folding(name, time, y, uncert, best_freq, ax, t_start=None, cycles=1):
     ax.set_ylabel(r'Magnitude', fontsize=19)
     ax.invert_yaxis()
     ax.tick_params(axis='both', which='major', labelsize=18)
-    plt.suptitle(name, fontsize=20, weight='bold')
+    # plt.suptitle(name, fontsize=20, weight='bold')
     if ((24*60)/best_freq)<60:
-        ax.set_title(f'Freq: {best_freq:.4f}'+ '$d^{-1}$'+f'; period: {(24*60) / best_freq:.3f}' + r'$ \, min$',
-                     fontsize=20)
+        ax.set_title(f'{name}\nFreq: {best_freq:.4f}'+ '$d^{-1}$'+f'; period: {(24*60) / best_freq:.3f}' + r'$ \, min$',
+                     fontsize=20, weight='bold')
     elif ((((24*60)/best_freq)>60) and (((24*60)/best_freq)<(24*60))):
-        ax.set_title(f'Freq: {best_freq:.4f}'+ '$d^{-1}$'+f'; period: {24 / best_freq:.3f}' + r'$ \, hr$',
-                     fontsize=20)
+        ax.set_title(f'{name}\nFreq: {best_freq:.4f}'+ '$d^{-1}$'+f'; period: {24 / best_freq:.3f}' + r'$ \, hr$',
+                     fontsize=20, weight='bold')
     else:
-        ax.set_title(f'Freq: {best_freq:.4f}'+ '$d^{-1}$'+f'; period: {1/best_freq:.3f}' + r'$ \, d$',
-                     fontsize=20)
+        ax.set_title(f'{name}\nFreq: {best_freq:.4f}'+ '$d^{-1}$'+f'; period: {1/best_freq:.3f}' + r'$ \, d$',
+                     fontsize=20, weight='bold')
    
 
 
-def lc_combined(name, t_list, y_list, y_list_err, filt_list, best_freq, t_start=None):
+def lc_combined(name, t_list, y_list, y_list_err, filt_list, best_freq, t_start=None, cycles=2, outliers='eb'):
     '''
     Stacks plots of folded ligth curves of the same source with different 
     instruments and/or filters.
@@ -948,7 +983,7 @@ def lc_combined(name, t_list, y_list, y_list_err, filt_list, best_freq, t_start=
     for i in range(len(t_list)):
         if i==0:
             ax1 = fig.add_subplot(gs[i])
-            lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax1, t_start=t_start, cycles=2)
+            lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax1, t_start=t_start, cycles=cycles, outliers=outliers)
             # Change color depending on ins and filter
             errorbars = ax1.get_children()
             plot_color = color_dict.get(filt_list[i], 'black')
@@ -960,7 +995,7 @@ def lc_combined(name, t_list, y_list, y_list_err, filt_list, best_freq, t_start=
             ax1.text(0.02,0.93, filt_list[i], fontsize=18, transform = trans, style='italic')
         elif i==max(range(len(t_list))):
             ax = fig.add_subplot(gs[i], sharex=ax1)
-            lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax, t_start=t_start, cycles=2)
+            lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax, t_start=t_start, cycles=cycles, outliers=outliers)
             # Change color depending on ins and filter
             errorbars = ax.get_children()
             plot_color = color_dict.get(filt_list[i], 'black')
@@ -971,7 +1006,7 @@ def lc_combined(name, t_list, y_list, y_list_err, filt_list, best_freq, t_start=
             ax.text(0.02,0.93, filt_list[i], fontsize=18, transform = trans, style='italic')
         else:
             ax = fig.add_subplot(gs[i], sharex=ax1)
-            lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax, t_start=t_start, cycles=2)
+            lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax, t_start=t_start, cycles=cycles, outliers=outliers)
             # Change color depending on ins and filter
             errorbars = ax.get_children()
             plot_color = color_dict.get(filt_list[i], 'black')
@@ -986,7 +1021,7 @@ def lc_combined(name, t_list, y_list, y_list_err, filt_list, best_freq, t_start=
     gs.update(hspace=0)
     
     
-def bulk_combine(name, instruments, best_freq):
+def bulk_combine(name, instruments, best_freq, cycles=2, outliers='eb'):
     '''
     Calls lc_combined with the instruments given.
     
@@ -1025,7 +1060,7 @@ def bulk_combine(name, instruments, best_freq):
             mag_errs.append(yerr)
             filts.append(filt)
 
-    lc_combined(name, times, mags, mag_errs, filts, best_freq, t_start=t_start)
+    lc_combined(name, times, mags, mag_errs, filts, best_freq, t_start=t_start, cycles=cycles, outliers=outliers)
 
     plt.tight_layout()
     plt.show()
@@ -1423,13 +1458,19 @@ def observable_when(name, ra, dec, site_name, time_range, delta, phase_range=Non
 #---------------------------------------------------------------------------------------------------------------#
 
 def oc_diagram(time, y, period, t_eclipse=None, y_eclipse=None, time_format='mjd'):
-    'THIS FUNCTION IS SHIT, ONLY USED TO SHOW THAT I CANNOT (?) DO AN OCD WITH MY LCs'
-    'IT IS JUST A FIRST APPROACH'
+    
     
     # Remove outliers from the data
-    # sigma = remove_outliers(y, method='eb')
-    # time = time[sigma]
-    # y = y[sigma]
+    sigma = remove_outliers(y, method='eb')
+    time = time[sigma]
+    y = y[sigma]
+    
+    # Set parameters and units
+    time_with_units = Time(time, format=time_format)
+    # period = period*u.d
+    
+    years = np.array([t.datetime.year for t in time_with_units])
+    years_unique = list(set(years))
     
     # Set the eclipse time to the time when the maximum magnitude was observed
     if t_eclipse is None:
@@ -1437,63 +1478,140 @@ def oc_diagram(time, y, period, t_eclipse=None, y_eclipse=None, time_format='mjd
     # Also set the magnitude value at primary mid-eclipse
     if y_eclipse is None:
         y_eclipse = y[np.argmax(y)]
-    
+        
     # Set parameters and units
-    time = Time(time, format=time_format)
-    period = period*u.d
-    mintime = Time(min(time))  # Starting time of the lightcurve
-    t_eclipse = Time(t_eclipse, format=time_format)  
+    t_eclipse = Time(t_eclipse, format=time_format)
+    mintime = Time(min(time), format=time_format)  # Starting time of the lightcurve
     n_eclipses = int((max(time)-min(time))/period)  # Number of eclipses in the time range given
     
     # Calculated eclipses
-    primary_eclipses, secondary_eclipses = next_transits('', mintime, t_eclipse, period, 
+    primary_eclipses, secondary_eclipses = next_transits('', mintime, t_eclipse, period*u.d, 
                                                          n_eclipses=n_eclipses, verbose=False)
-        
-    # Slice the light curve, each slice contains one eclipse (primary or secondary)
-    # first_eclipse = primary_eclipses[0]
-    first_eclipse = primary_eclipses[0]
-    starting_point = first_eclipse - 0.25*period # We set this as a kind of phase=0, so each eclipse falls in the middle of the slice more or less
-    slice_size = period*0.5
+    
+    eclipse_years = np.array([t.datetime.year for t in primary_eclipses])
+    
     oc = []
     number_eclipses = []
-    #obs_secondary_eclipses = []
-    for i in range(len(primary_eclipses)):
-        slice_start = starting_point + i*period
-        slice_end = slice_start + slice_size
-        mask = (slice_start <= time)*(time <= slice_end)
-        if any(mask)==True:
-            y_min = max(y[mask])
-            min_index = np.where(y==y_min)[0][0]
-        else:
-            continue
-        # primary eclipse
-        #print(y[min_index])
-        if (y_eclipse-0.03 < y[min_index]) and (y[min_index] < y_eclipse+0.03):
-            y_to_fit = [y[min_index-2], y[min_index-1], y[min_index], 
-                        y[min_index+1], y[min_index+2]]
-            time_to_fit = [time[min_index-2].value, time[min_index-1].value, time[min_index].value, 
-                        time[min_index+1].value, time[min_index+2].value]
-            p = np.polyfit(time_to_fit,y_to_fit,2)
-            time_fit = np.linspace(time[min_index-2].value, time[min_index+2].value, 1000)
-            y_fit = np.polyval(p, time_fit)
-            oc.append(time_fit[np.argmax(y_fit)]-primary_eclipses[i].value)
-            number_eclipses.append(i)
-            
-            plt.figure(figsize=(8,8))
-            plt.scatter(time[mask].value, y[mask], s=5, c='b')
-            plt.plot(time_fit, y_fit, ls='--', color='r')
-            ax = plt.gca()
-            ax.invert_yaxis()
-            plt.show()
-            plt.close()
+    for year in years_unique:
+        mask = years==year
+        t = time[mask]
+        mag = y[mask]
+
+        first_eclipse = primary_eclipses[eclipse_years==year][0]
+        
+        t_start = first_eclipse.mjd - 0.5*period
+        t = t - t_start
+        x = (t * 1/period) % 1
+        
+        sorted_indices = np.argsort(x)
+        sorted_times = x[sorted_indices]
+        sorted_magnitudes = mag[sorted_indices]
+        
+        
+        y_min = max(sorted_magnitudes[(sorted_times>0.4)*(sorted_times<0.6)])
+        min_index = np.where(sorted_magnitudes==y_min)[0][0]
+        start_index = max(0, min_index - (11 // 2))
+        end_index = min(len(sorted_indices)-1, start_index + 11)
+        
+        # Select the data points within the window
+        t_to_fit = sorted_times[start_index:end_index]
+        mag_to_fit = sorted_magnitudes[start_index:end_index]
+        
+        fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+        
+        p = np.polyfit(t_to_fit,mag_to_fit,2)
+        time_fit = np.linspace(sorted_times[start_index], sorted_times[end_index], 1000)
+        y_fit = np.polyval(p, time_fit)
+        oc.append((time_fit[np.argmax(y_fit)] - 0.5)*period)
+        ax.axvline(time_fit[np.argmax(y_fit)], color='r', ls='--')
+        ax.plot(time_fit, y_fit, ls='--', color='r')
+        ax.scatter(t_to_fit, mag_to_fit)
+        
+        ax.scatter(x, mag, s=10, color = 'k')
+        ax.axvline(0.5)
+        ax.set_xlabel('Phase', fontsize=19)
+        ax.set_ylabel(r'Magnitude', fontsize=19)
+        ax.invert_yaxis()
+        ax.tick_params(axis='both', which='major', labelsize=18)
+        #ax.set_xlim(0.4, 0.6)
+        plt.tight_layout()
+        plt.show()
+        plt.close()
+        
     
-    sigma = remove_outliers(oc)
+    # # Set the eclipse time to the time when the maximum magnitude was observed
+    # if t_eclipse is None:
+    #    t_eclipse = time[np.argmax(y)]
+    # # Also set the magnitude value at primary mid-eclipse
+    # if y_eclipse is None:
+    #     y_eclipse = y[np.argmax(y)]
+    
+    # # Set parameters and units
+    # time = Time(time, format=time_format)
+    # period = period*u.d
+    # mintime = Time(min(time))  # Starting time of the lightcurve
+    # t_eclipse = Time(t_eclipse, format=time_format)  
+    # n_eclipses = int((max(time)-min(time))/period)  # Number of eclipses in the time range given
+    
+    # # Calculated eclipses
+    # primary_eclipses, secondary_eclipses = next_transits('', mintime, t_eclipse, period, 
+    #                                                      n_eclipses=n_eclipses, verbose=False)
+        
+    # # Slice the light curve, each slice contains one eclipse (primary or secondary)
+    # oc = []
+    # number_eclipses = []
+    # if mode=='fold':
+    #     first_eclipse = primary_eclipses[0]
+    #     starting_point = first_eclipse-0.5*period
+    #     slice_size = 365
+        
+        
+    # else:
+    #     first_eclipse = primary_eclipses[0]
+    #     starting_point = first_eclipse - 0.25*period # We set this as a kind of phase=0, so each eclipse falls in the middle of the slice more or less
+    #     slice_size = period*0.5
+        
+    #     for i in range(len(primary_eclipses)):
+    #         slice_start = starting_point + i*period
+    #         slice_end = slice_start + slice_size
+    #         mask = (slice_start <= time)*(time <= slice_end)
+    #         if any(mask)==True:
+    #             y_min = max(y[mask])
+    #             min_index = np.where(y==y_min)[0][0]
+    #         else:
+    #             continue
+    #         # primary eclipse
+    #         #print(y[min_index])
+    #         if (y_eclipse-0.03 < y[min_index]) and (y[min_index] < y_eclipse+0.03):
+    #             y_to_fit = [y[min_index-2], y[min_index-1], y[min_index], 
+    #                         y[min_index+1], y[min_index+2]]
+    #             time_to_fit = [time[min_index-2].value, time[min_index-1].value, time[min_index].value, 
+    #                         time[min_index+1].value, time[min_index+2].value]
+    #             p = np.polyfit(time_to_fit,y_to_fit,2)
+    #             time_fit = np.linspace(time[min_index-2].value, time[min_index+2].value, 1000)
+    #             y_fit = np.polyval(p, time_fit)
+    #             oc.append(time_fit[np.argmax(y_fit)]-primary_eclipses[i].value)
+    #             number_eclipses.append(i)
+                
+    #             plt.figure(figsize=(8,8))
+    #             plt.scatter(time[mask].value, y[mask], s=5, c='b')
+    #             plt.plot(time_fit, y_fit, ls='--', color='r')
+    #             ax = plt.gca()
+    #             ax.invert_yaxis()
+    #             plt.show()
+    #             plt.close()
+    
+    #obs_secondary_eclipses = []
+    
+    
+    # sigma = remove_outliers(oc)
     plt.figure(figsize=(8,8))
-    plt.scatter(np.array(number_eclipses)[sigma], np.array(oc)[sigma], s=10, c='black')
+    plt.scatter(years_unique, np.array(oc), s=10, c='black')
     # plt.scatter(number_eclipses, oc, s=10, c='black')
     plt.xlabel('Eclipse')
     plt.ylabel('O-C (days)')
     plt.show()
     plt.close()
     
-    return number_eclipses, oc
+    return number_eclipses, oc  
+    
