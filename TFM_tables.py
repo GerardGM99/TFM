@@ -65,7 +65,7 @@ mapping_dict = dict(zip(crowd['name'], crowd['Crowded']))
 new['Crowded'] = new['Gaia source ID'].map(mapping_dict)
 
 lc_list = []
-directories = ['ZTF_lightcurves_std', 'ASAS-SN_lightcurves_std', 'ATLAS_lightcurves_std', 'NEOWISE_lightcurves_std']
+directories = ['ZTF_lightcurves_std', 'ASAS-SN_lightcurves_std', 'ATLAS_lightcurves_std', 'NEOWISE_lightcurves_std', 'TESS_lightcurves_std']
 for ide in out['Gaia source ID']:
     inst = check_file_in_directories(ide, directories)
     lc_list.append(inst)    

@@ -8,7 +8,7 @@ Created on Sun Feb 25 13:15:25 2024
 
 from lightcurve_utils import standard_table
 
-standard_table('MeerLICHT', 'data/ML_paul.csv', 'data/70_targets.csv', 'DR3_source_id')
+standard_table('TESS', 'TESS_lightcurves', 'data/70_targets.csv')
 
 #%%
 
@@ -50,7 +50,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-bulk_combine('6123873398383875456', ['ASAS-SN'], 24/(19.0433664), cycles=2, outliers='eb')
+bulk_combine('5311969857556479616_S08_GSFC-ELEANOR-LITE', ['ATLAS', 'TESS'], 1/(13.7444267), cycles=1, outliers='eb')
 
 # plt.tight_layout()
 # plt.show()
@@ -60,12 +60,15 @@ import numpy as np
 import pandas as pd
 import astropy.units as u
 from lightcurve_utils import lomb_scargle
+from astropy.timeseries import BoxLeastSquares
+import matplotlib.pyplot as plt                  
 
-table = pd.read_csv('ASAS-SN_lightcurves_std/2002117151282819840.csv')
+
+table = pd.read_csv('TESS_lightcurves_std/5311969857556479616_S62_QLP.csv')
 #band=list(set(table['filter']))[0]
-t = np.array(table['mjd'].loc[table['filter']=='V']) * u.day
-y = np.array(table['mag'].loc[table['filter']=='V']) * u.mag
-yerr = np.array(table['magerr'].loc[table['filter']=='V']) * u.mag
+t = np.array(table['bjd'])
+y = np.array(table['flux'])
+# yerr = np.array(table['fluxerr'])
 
 # frequency, power = LombScargle(t, y, dy=yerr).autopower(minimum_frequency=0.001/u.d,
 #                                                         maximum_frequency=100/u.d)
@@ -77,7 +80,16 @@ yerr = np.array(table['magerr'].loc[table['filter']=='V']) * u.mag
 # plt.plot(frequency, power)
 # plt.show()
 
-lomb_scargle(t, y, yerr, fmin=0.01, fmax=20, plot=True)
+# lomb_scargle(t, y, yerr=None, fmin=0.01, fmax=20, plot=True)
+
+
+model = BoxLeastSquares(t * u.day, y)
+periodogram = model.autopower(0.2)
+period = periodogram.period[np.argmax(periodogram.power)]
+
+# plt.scatter(t/period.value % 1, y, s=5)
+plt.plot(periodogram.period, periodogram.power)
+
 
 #%%
 
@@ -137,12 +149,6 @@ ax.set_ylabel("Magnitude", family = "serif", fontsize = 16)
 ax.set_xlabel("MJD - 58190.45 [days]", family = "serif", fontsize = 16)
 plt.show()
 
-#%%
-
-#from lightcurve_utils import plot_ind_lightcurves
-from lightcurve_utils import plot_lightcurves
-
-plot_lightcurves('BLACKGEM_lightcurves_std', rang='single', plot=True, savefig=False)
 
 #%%
 
@@ -375,11 +381,20 @@ import os
 directory = 'data/cafos_spectra'
 files = os.listdir(directory)
 
-for file in files:
-    if file.endswith('.txt'):
-        cafos_spectra(f'{directory}/{file}', 'data/TFM_table.csv', lines_file='data/spectral_lines.txt', plot=True, dered=True)
+# xrange=[4810, 4910]
+cafos_spectra(f'{directory}/spectra1D_dswfz_uniB_0200.txt', 'data/TFM_table.csv', 
+              lines_file='data/spectral_lines.txt', priority=[1, 2], plot=True, dered='fitz')
+# lamost_spectra(f'{directory}/spec-55977-GAC_080N37_V1_sp03-241.fits', 'data/70_targets.csv', xrange=[3700,5100],
+#                lines_file='data/spectral_lines.txt', priority=[1, 2], plot=True)
+# lamost_spectra(f'{directory}/spec-56687-GAC080N37V1_sp03-241.fits', 'data/70_targets.csv', lines_file='data/spectral_lines.txt', plot=True)
+# lamost_spectra(f'{directory}/spec-56948-HD052351N362354B_sp14-213.fits', 'data/70_targets.csv', lines_file='data/spectral_lines.txt', plot=True)
+
+# for file in files:
+#     if file.endswith('.txt'):
+#         cafos_spectra(f'{directory}/{file}', 'data/TFM_table.csv', #xrange=[4300, 4500],
+#                       lines_file='data/spectral_lines.txt', priority=[1], plot=True, dered='calz')
         # lamost_spectra(f'{directory}/{file}', 'data/70_targets.csv', lines_file=None, plot=False, outdir='SPECTRA/LAMOST_spectra')
-        
+
 #%%
 
 from urllib.request import urlopen

@@ -10,6 +10,7 @@ from astropy.table import Table
 from astropy.time import Time
 from astropy.time import TimeDelta
 from astropy.coordinates import SkyCoord
+from astropy.coordinates import EarthLocation
 from astropy.io import fits
 import astropy.units as u
 import numpy as np
@@ -28,8 +29,9 @@ import datetime as dt
 import tglc
 from tglc.quick_lc import tglc_lc
 import pickle
+import lightkurve as lk
 
-def standard_table(ins, lc_directory, asciicords, source_name, output_format='csv', suffix='csv'):
+def standard_table(ins, lc_directory, asciicords, output_format='csv', suffix='csv'):
     '''
     Given data from an specified catalog/instrument, creates a table with 
     relevant data for plotting light curves, with columns:
@@ -37,7 +39,7 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
         - inst: the catalog/instrument from which the data is taken
         - filter: the band used by the instrument
         - mjd: the Modified Julian Date of the observation
-        - mjderr: the error on the mjd
+        - bjd: the Barycentric Dynamical Time of the observation
         - mag: the magnitude
         - magerr: the error on the mag
         - flux
@@ -52,9 +54,6 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
         Directory with the data files.
     asciicords: string
         File with the coordinates and the id of all the sources.
-    source_name: string
-        Name of the column containing the name/id of the sources (to give
-        names to the plots and the output tables).
     output_format: string, optional
         The format of the output tables (csv, latex...).
     suffix: string, optional
@@ -67,7 +66,7 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
     '''
     
     # Format for the output table
-    mydtype=[("name", "|S25"), ("inst","|S15"), ("filter","|S15"), ("mjd","<f4"),("mjderr","<f4"), 
+    mydtype=[("name", "|S25"), ("inst","|S15"), ("filter","|S25"), ("mjd","<f8"),("bjd","<f8"), 
              ("mag","<f4"), ("magerr","<f4"), ("flux","<f4"), ("fluxerr","<f4")]
     
     # Read directory with light curve files
@@ -75,10 +74,80 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
         lc = os.listdir(lc_directory)
     
     # Read the file with the ids and coordinates of the sources
-    if (ins != 'BLACKGEM') and (ins != 'MeerLICHT'):
-        #table_coord = pd.read_csv(asciicords)
-        table_coord = Table.read(asciicords, format='ascii.csv')
-    
+    #table_coord = pd.read_csv(asciicords)
+    table_coord = Table.read(asciicords, format='ascii.csv')
+        
+    # Light curves from TESS
+    if ins == 'TESS':
+        # Create directory where to store the output files
+        output_path = './TESS_lightcurves_std'
+        if not os.path.isdir(output_path):
+            os.makedirs(output_path)
+        
+        # Loop for every light curve file in the lc directory    
+        for file in lc:
+            # Read light curve file
+            table = Table.read(f'{lc_directory}/{file}', format='ascii.csv')
+            
+            auth = file.split('_')[2].split('.')[0]
+            name = file.split('_')[0]
+            
+            if auth=='QLP': # https://archive.stsci.edu/hlsp/qlp
+                table_clean = table[(table['quality']==0)]
+                time = Time(table_clean['time'] + 2457000., format='jd', scale='tdb')
+                try:
+                    flux = table_clean['kspsap_flux']
+                    fluxerr = table_clean['kspsap_flux_err']
+                except:
+                    flux = table_clean['det_flux']
+                    fluxerr = table_clean['det_flux_err']
+            elif auth=='SPOC': # https://archive.stsci.edu/hlsp/tess-spoc
+                table_clean = table[(table['quality']==0)]
+                time = Time(table_clean['time'] + 2457000., format='jd', scale='tdb')
+                time = Time(time, format='jd', scale='tcb')
+                flux = table_clean['pdcsap_flux']
+                fluxerr = table_clean['pdcsap_flux_err']
+            elif auth=='TASOC': # https://archive.stsci.edu/hlsp/tasoc
+                table_clean = table[(table['quality']==0)]
+                time = Time(table_clean['time'] + 2457000., format='jd', scale='tdb')
+                flux = table_clean['flux_corr']
+                fluxerr = table_clean['flux_corr_err']
+            elif auth=='CDIPS': # https://archive.stsci.edu/hlsp/cdips
+                table_clean = table[(table['irq2']=='G')]
+                time = Time(table_clean['time'], format='jd', scale='tdb')
+                flux = table_clean['ifl2']
+                fluxerr = table_clean['ife2']
+                mag = table_clean['irm2']
+                magerr = table_clean['ire2']
+            elif auth=='TGLC': # https://archive.stsci.edu/hlsp/tglc
+                table_clean = table[(table['quality']==0)]
+                time = Time(table_clean['time'] + 2457000., format='jd', scale='tdb')
+                flux = table_clean['cal_psf_flux']
+                fluxerr = np.zeros(len(table_clean))
+            elif auth=='GSFC-ELEANOR-LITE': # https://archive.stsci.edu/hlsp/gsfc-eleanor-lite
+                table_clean = table[(table['quality']==0)]
+                time = Time(table_clean['time'] + 2457000., format='jd', scale='tdb')
+                flux = table_clean['corr_flux']
+                fluxerr = np.zeros(len(table_clean))
+            
+            # Create and fill output table
+            final_table = np.zeros(len(table_clean), dtype=mydtype)
+            
+            final_table['inst'] = ins
+            final_table['filter'] = auth
+            final_table['bjd'] = time.mjd
+            final_table['flux'] = flux
+            final_table['fluxerr'] = fluxerr
+            if auth=='CDIPS':
+                final_table['mag'] = mag
+                final_table['magerr'] = magerr
+            final_table['name'] = name
+            
+            final_table = Table(final_table)
+            
+            # Write the output table in the desired directory
+            file_name = file.split('.')[0]
+            final_table.write(f'{output_path}/{file_name}.{suffix}', format=output_format, overwrite=True)
     
     # Light curves from Zwicky Transient Facility [ZTF] (https://www.ztf.caltech.edu)
     if ins == 'ZTF':
@@ -95,19 +164,29 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
             # Clean the data (https://irsa.ipac.caltech.edu/data/ZTF/docs/ztf_extended_cautionary_notes.pdf)
             table_clean = table[(table['catflags']==0) & (table['chi']<4)]
             
+            # Xmatch with the asciicoords file
+            column_names = ['ra', 'dec', 'ra', 'dec', 'DR3_source_id']
+            xmatch_table = coord_utils.sky_xmatch(table_clean, table_coord, 1, column_names)
+            file_name = xmatch_table['Name'][0]
+            
+            coords = SkyCoord(table_coord['ra'][table_coord['DR3_source_id']==int(file_name)],
+                              table_coord['dec'][table_coord['DR3_source_id']==int(file_name)],
+                              unit='deg', frame='icrs')
+            location = EarthLocation.of_site('Palomar')
+            mjd_time = Time(table_clean['mjd'], format='mjd', 
+                            scale='utc', location=location)
+            ltt_bary = mjd_time.light_travel_time(coords)
+            time_barycentre = mjd_time.tdb + ltt_bary
+            
             # Create and fill output table
             final_table = np.zeros(len(table_clean), dtype=mydtype)
             
             final_table['inst'] = ins
             final_table['filter'] = table_clean['filtercode']
-            final_table['mjd'] = table_clean['mjd']
+            final_table['mjd'] = mjd_time.value
+            final_table['bjd'] = time_barycentre.value
             final_table['mag'] = table_clean['mag']
             final_table['magerr'] = table_clean['magerr']
-            
-            # Xmatch with the asciicoords file
-            column_names = ['ra', 'dec', 'ra', 'dec', 'DR3_source_id']
-            xmatch_table = coord_utils.sky_xmatch(table_clean, table_coord, 1, column_names)
-            file_name = xmatch_table['Name'][0]
             final_table['name'] = file_name
             
             final_table = Table(final_table)
@@ -122,7 +201,7 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
         if not os.path.isdir(output_path):
             os.makedirs(output_path)
         
-        # Create directory where to store the separated NEOWISE light curves
+        # Create directory where to store the separated light curves
         pathos = './IRSA_ZTF_lightcurves'
         if not os.path.isdir(pathos):
             os.makedirs(pathos)
@@ -149,13 +228,24 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
         for file in lc:
             # Read light curve file
             table_clean = Table.read(f'{pathos}/{file}', format='ascii.csv')
-                        
+            name = table_clean['Name'][0]
+            
+            coords = SkyCoord(table_coord['ra'][table_coord['DR3_source_id']==name],
+                              table_coord['dec'][table_coord['DR3_source_id']==name],
+                              unit='deg', frame='icrs')
+            location = EarthLocation.of_site('Palomar')
+            mjd_time = Time(table_clean['mjd'], format='mjd', 
+                            scale='utc', location=location)
+            ltt_bary = mjd_time.light_travel_time(coords)
+            time_barycentre = mjd_time.tdb + ltt_bary
+            
             # Create and fill output table
             final_table = np.zeros(len(table_clean), dtype=mydtype)
             
             final_table['inst'] = ins
             final_table['filter'] = table_clean['filtercode']
-            final_table['mjd'] = table_clean['mjd']
+            final_table['mjd'] = mjd_time.value
+            final_table['bjd'] = time_barycentre.value
             final_table['mag'] = table_clean['mag']
             final_table['magerr'] = table_clean['magerr']
             final_table['name'] = table_clean['Name']
@@ -163,14 +253,13 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
             final_table = Table(final_table)
             
             # Write the output table in the desired directory
-            name = final_table['name'][0]
             final_table.write(f'{output_path}/{name}.{suffix}', format=output_format, overwrite=True)
             
     
     # Light curves from All-Sky Automated Surveey for Supernovae [ASAS-SN] (https://asas-sn.osu.edu)   
-    if ins == 'ASAS_SN':
+    if ins == 'ASAS-SN':
           # Create directory where to store the output files
-          output_path = './ASAS_SN_lightcurves_std'
+          output_path = './ASAS-SN_lightcurves_std'
           if not os.path.isdir(output_path):
               os.makedirs(output_path)
           
@@ -182,19 +271,30 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
               # Clean the data (bad observations have mag_err = 99.99; quality flag can be G (good) and B (bad))
               table_clean = table[(table['mag_err']<99) & (table['quality']=='G')]
               
+              file_name_only = file.split('.csv')[0]
+              coords = SkyCoord(table_coord['ra'][table_coord['DR3_source_id']==int(file_name_only)],
+                                table_coord['dec'][table_coord['DR3_source_id']==int(file_name_only)],
+                                unit='deg', frame='icrs')
+              location = EarthLocation.of_site('ctio')
+              jd_time = Time(table_clean['jd'], format='jd', 
+                              scale='utc', location=location)
+              jd_time.format = 'mjd'
+              ltt_bary = jd_time.light_travel_time(coords)
+              time_barycentre = jd_time.tdb + ltt_bary
+              
               # Create and fill output table
               final_table = np.zeros(len(table_clean), dtype=mydtype)
               
               final_table['inst'] = ins
               final_table['filter'] = table_clean['phot_filter']
-              final_table['mjd'] = Time(table_clean['jd'], format='jd').mjd
+              final_table['mjd'] = jd_time.value
+              final_table['bjd'] = time_barycentre.value
               final_table['mag'] = table_clean['mag']
               final_table['magerr'] = table_clean['mag_err']
               final_table['flux'] = table_clean['flux']
               final_table['fluxerr'] = table_clean['flux_err']
               
               # Name of the file, the same as the imput lc file because the downloaded tables from asas-sn don't have coordinates
-              file_name_only = file.split('.csv')[0]
               final_table['name'] = np.repeat(file_name_only, len(final_table))
               
               final_table = Table(final_table)
@@ -220,28 +320,38 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
             table_clean = table[(table['dm']<=0.05) & (table['duJy']<3000) & (table['uJy']>0) & (table['chi/N']<100) & (table['mag5sig']>table['m'])]
             table_clean = table_clean[(table_clean['F']=='o')|(table_clean['F']=='c')]
             
+            # Xmatch with the asciicoords file
+            column_names = ['RA', 'Dec', 'ra', 'dec', 'DR3_source_id']
+            xmatch_table = coord_utils.sky_xmatch(table_clean, table_coord, 1, column_names)
+            file_name = xmatch_table['Name'][0]
+            
+            coords = SkyCoord(table_coord['ra'][table_coord['DR3_source_id']==int(file_name)],
+                              table_coord['dec'][table_coord['DR3_source_id']==int(file_name)],
+                              unit='deg', frame='icrs')
+            location = EarthLocation.of_site('haleakala')
+            mjd_time = Time(table_clean['##MJD'], format='mjd', 
+                            scale='utc', location=location)
+            ltt_bary = mjd_time.light_travel_time(coords)
+            time_barycentre = mjd_time.tdb + ltt_bary
+            
             # Create and fill output table
             final_table = np.zeros(len(table_clean), dtype=mydtype)
             
             final_table['inst'] = ins
             final_table['filter'] = table_clean['F']
-            final_table['mjd'] = table_clean['##MJD']
+            final_table['mjd'] = mjd_time.value
+            final_table['bjd'] = time_barycentre.value
             final_table['mag'] = table_clean['m']
             final_table['magerr'] = table_clean['dm']
             final_table['flux'] = table_clean['uJy']
             final_table['fluxerr'] = table_clean['duJy']
+            final_table['name'] = file_name
                                    
             # Give a name to each file acording to the asciicords file which has the id and the coordinates of the sources
             # ra = round(table_clean['RA'][0], 2)
             # dec = round(table_clean['Dec'][0], 2)
             # file_name = table_coord[source_name][(round(table_coord['ra'],2)==ra) & (round(table_coord['dec'],2)==dec)].iloc[0]
             # final_table['name'] = np.repeat(file_name, len(final_table))
-            
-            # Xmatch with the asciicoords file
-            column_names = ['RA', 'Dec', 'ra', 'dec', 'DR3_source_id']
-            xmatch_table = coord_utils.sky_xmatch(table_clean, table_coord, 1, column_names)
-            file_name = xmatch_table['Name'][0]
-            final_table['name'] = file_name
             
             final_table = Table(final_table)
             
@@ -350,6 +460,7 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
                     final_table['inst'] = ins
                     final_table['filter'] = table_clean['filter']
                     final_table['mjd'] = table_clean['mjd']
+                    final_table['bjd'] = Time(final_table['mjd'], format='mjd').tdb.value
                     final_table['mag'] = table_clean['MAG_OPT']
                     final_table['magerr'] = table_clean['MAGERR_OPT']
                         
@@ -395,6 +506,7 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
             final_table['inst'] = ins
             final_table['filter'] = table_clean['FILTER']
             final_table['mjd'] = table_clean['MJD-OBS']
+            final_table['bjd'] = Time(final_table['mjd'], format='mjd').tdb.value
             final_table['mag'] = table_clean['MAG_OPT']
             final_table['magerr'] = table_clean['MAGERR_OPT']
             final_table['name'] = table_clean['DR3_source_id']
@@ -409,6 +521,9 @@ def standard_table(ins, lc_directory, asciicords, source_name, output_format='cs
 #---------------------------------------------------------------------------------------------------------------#
 
 def tess_lglc(ide, target, save_dir):
+    '''
+    ABANDONDED
+    '''
     # target: TIC ID (preferred, 'TIC 12345678'), Target ID ('TOI 519') or coordinates ('ra dec')
     local_directory = f'{save_dir}/{ide}/'    # directory to save all files
     os.makedirs(local_directory, exist_ok=True)
@@ -433,6 +548,37 @@ def tess_lglc(ide, target, save_dir):
     
     tglc_lc(target=target, local_directory=local_directory, size=40, save_aper=True, limit_mag=13, 
             get_all_lc=False, first_sector_only=False, sector=None, prior=None)
+    
+
+def TESSlk_get_lcs(table):
+    '''
+    Extracts the processed TESS light curves using lightkurve, for the objects
+    in the given table. Saves the light curve as a csv named 
+    {Gaia DR3 ID}_S{TESS sector}_{processing pipeline}.csv
+    
+    Parameters
+    ----------
+    table: pandas.DataFrame or astropy.Table
+        Table with the Gaia DR3 ID (column must be named 'DR3_source_id'), the 
+        TIC (column must be named 'TIC').
+    '''
+    
+    outdir = './TESS_lightcurves'
+    if not os.path.isdir(outdir):
+        os.makedirs(outdir)
+
+    for name, tic in zip(table['DR3_source_id'], table['TIC']):
+        search_result = lk.search_lightcurve('TIC %s' %tic)
+        lc = search_result.download_all()
+        if lc is not None:
+            for i in range(len(lc)):
+                try:
+                    lc_clean = lc[i].remove_nans().remove_outliers()
+                except:
+                    lc_clean = lc[i]
+                author = lc_clean.author
+                sector = search_result[i].mission[0].split(' ')[2]
+                lc_clean.to_csv(f'{outdir}/{name}_S{sector}_{author}.csv', overwrite=True)
     
     
 #---------------------------------------------------------------------------------------------------------------#
@@ -600,8 +746,8 @@ def plot_ind_lightcurves(file_name, ref_mjd=58190.45, y_ax='mag', outliers='medi
         ('IRSA_ZTF', 'zg'):'g',
         ('IRSA_ZTF', 'zr'):'r',
         ('IRSA_ZTF', 'zi'):'gold',
-        ('ASAS_SN', 'V'):'darkcyan',
-        ('ASAS_SN', 'g'):'blue',
+        ('ASAS-SN', 'V'):'darkcyan',
+        ('ASAS-SN', 'g'):'blue',
         ('ATLAS', 'o'):'orange',
         ('ATLAS', 'c'):'cyan',
         ('NEOWISE', 'W1'):'darkred',
@@ -617,7 +763,13 @@ def plot_ind_lightcurves(file_name, ref_mjd=58190.45, y_ax='mag', outliers='medi
         ('MeerLICHT', 'r'):'orange',
         ('MeerLICHT', 'i'):'firebrick',
         ('MeerLICHT', 'z'):'sienna',
-        ('MeerLICHT', 'q'):'black'}
+        ('MeerLICHT', 'q'):'black',
+        ('TESS, QLP'):'magenta',
+        ('TESS, SPOC'):'magenta',
+        ('TESS, TASOC'):'magenta',
+        ('TESS, CDIPS'):'magenta',
+        ('TESS, TGLC'):'magenta',
+        ('TESS, GSFC-ELEANOR-LITE'):'magenta'}
     
     plt.ioff()
     #data_files_names_only = file_name.split(".csv")[0]
@@ -857,7 +1009,7 @@ def vel_period_mass(m1, q, P, t_scale='days', e=0, plot=True):
 #---------------------------------------------------------------------------------------------------------------#
 
 
-def lc_folding(name, time, y, uncert, best_freq, ax, t_start=None, cycles=1, outliers='eb'):
+def lc_folding(name, time, y, uncert, best_freq, ax, t_start=None, cycles=1, outliers='eb', yunits='mag'):
     '''
     Folds given light curve at a certain frequency.
     
@@ -901,14 +1053,18 @@ def lc_folding(name, time, y, uncert, best_freq, ax, t_start=None, cycles=1, out
     else:
         time = time - t_start
     
+    name = name.split('_')[0]
     
     # Plot folded light curve
     #fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 6))
     ax.errorbar((time * best_freq) % cycles, y,yerr=uncert, fmt='o', ecolor='black', capsize=2, elinewidth=2,
                  markersize=2, markeredgewidth=0.5, alpha=0.8, color='black',zorder=0, mec='black')
     ax.set_xlabel('Phase', fontsize=19)
-    ax.set_ylabel(r'Magnitude', fontsize=19)
-    ax.invert_yaxis()
+    if yunits=='mag':
+        ax.invert_yaxis()
+        ax.set_ylabel(r'Magnitude', fontsize=19)
+    elif yunits=='flux':
+        ax.set_ylabel(r'Flux', fontsize=19)
     ax.tick_params(axis='both', which='major', labelsize=18)
     # plt.suptitle(name, fontsize=20, weight='bold')
     if ((24*60)/best_freq)<60:
@@ -963,8 +1119,8 @@ def lc_combined(name, t_list, y_list, y_list_err, filt_list, best_freq, t_start=
         ('IRSA_ZTF, zg'):'g',
         ('IRSA_ZTF, zr'):'r',
         ('IRSA_ZTF, zi'):'goldenrod',
-        ('ASAS_SN, V'):'darkcyan',
-        ('ASAS_SN, g'):'blue',
+        ('ASAS-SN, V'):'darkcyan',
+        ('ASAS-SN, g'):'blue',
         ('ATLAS, o'):'orange',
         ('ATLAS, c'):'cyan',
         ('NEOWISE, W1'):'darkred',
@@ -974,16 +1130,27 @@ def lc_combined(name, t_list, y_list, y_list_err, filt_list, best_freq, t_start=
         ('BLACKGEM, r'):'orange',
         ('BLACKGEM, i'):'firebrick',
         ('BLACKGEM, z'):'sienna',
-        ('BLACKGEM, q'):'black'}
+        ('BLACKGEM, q'):'black',
+        ('TESS, QLP'):'magenta',
+        ('TESS, SPOC'):'magenta',
+        ('TESS, TASOC'):'magenta',
+        ('TESS, CDIPS'):'magenta',
+        ('TESS, TGLC'):'magenta',
+        ('TESS, GSFC-ELEANOR-LITE'):'magenta'}
     
     fig = plt.figure(figsize=(10,4*len(t_list)))
     height_ratios = np.repeat(1, len(t_list))
     gs = gridspec.GridSpec(len(t_list), 1, height_ratios=height_ratios)
     
     for i in range(len(t_list)):
+        if filt_list[i].split(',')[0]=='TESS':
+            yunits='flux'
+        else:
+            yunits='mag'
+            
         if i==0:
             ax1 = fig.add_subplot(gs[i])
-            lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax1, t_start=t_start, cycles=cycles, outliers=outliers)
+            lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax1, t_start=t_start, cycles=cycles, outliers=outliers, yunits=yunits)
             # Change color depending on ins and filter
             errorbars = ax1.get_children()
             plot_color = color_dict.get(filt_list[i], 'black')
@@ -995,7 +1162,7 @@ def lc_combined(name, t_list, y_list, y_list_err, filt_list, best_freq, t_start=
             ax1.text(0.02,0.93, filt_list[i], fontsize=18, transform = trans, style='italic')
         elif i==max(range(len(t_list))):
             ax = fig.add_subplot(gs[i], sharex=ax1)
-            lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax, t_start=t_start, cycles=cycles, outliers=outliers)
+            lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax, t_start=t_start, cycles=cycles, outliers=outliers, yunits=yunits)
             # Change color depending on ins and filter
             errorbars = ax.get_children()
             plot_color = color_dict.get(filt_list[i], 'black')
@@ -1006,7 +1173,7 @@ def lc_combined(name, t_list, y_list, y_list_err, filt_list, best_freq, t_start=
             ax.text(0.02,0.93, filt_list[i], fontsize=18, transform = trans, style='italic')
         else:
             ax = fig.add_subplot(gs[i], sharex=ax1)
-            lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax, t_start=t_start, cycles=cycles, outliers=outliers)
+            lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax, t_start=t_start, cycles=cycles, outliers=outliers, yunits=yunits)
             # Change color depending on ins and filter
             errorbars = ax.get_children()
             plot_color = color_dict.get(filt_list[i], 'black')
@@ -1045,15 +1212,23 @@ def bulk_combine(name, instruments, best_freq, cycles=2, outliers='eb'):
     mag_errs=[]
     filts=[]
     for ins in instruments:
-        table = pd.read_csv(f'{ins}_lightcurves_std/{name}.csv')
+        if ins!='TESS':
+            nams = name.split('_')[0]
+            table = pd.read_csv(f'{ins}_lightcurves_std/{nams}.csv')
+        else:
+            table = pd.read_csv(f'{ins}_lightcurves_std/{name}.csv')
         bands=list(set(table['filter']))
         for i, band in enumerate(bands):
-            t=table['mjd'].loc[table['filter']==band]
-            y=table['mag'].loc[table['filter']==band]
+            t=table['bjd'].loc[table['filter']==band]
+            if ins=='TESS':
+                y=table['flux'].loc[table['filter']==band]
+                yerr=table['fluxerr'].loc[table['filter']==band]
+            else:
+                y=table['mag'].loc[table['filter']==band]
+                yerr=table['magerr'].loc[table['filter']==band]
             if i == 0:
                 min_index = np.argmax(y)
                 t_start = t.iloc[min_index]
-            yerr=table['magerr'].loc[table['filter']==band]
             filt = table['inst'][0] + ', ' + band
             times.append(t)
             mags.append(y)

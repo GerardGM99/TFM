@@ -21,7 +21,7 @@ from math import pi
 from astroquery.gaia import Gaia
 from scipy.special import wofz
 from coord_utils import sky_xmatch
-from extinction import fitzpatrick99, remove
+from extinction import fitzpatrick99, remove, calzetti00
 
 def Gaia_XP(id_list, out_path=None, plot=False):
     '''
@@ -58,7 +58,7 @@ def Gaia_XP(id_list, out_path=None, plot=False):
         plt.axvline(x = H_beta, color = 'c')
         plt.axvline(x = H_gamma, color = 'darkorchid')
         #labels, text...
-        plt.xlabel("Wavelength [nm]", fontsize=18)
+        plt.xlabel("Rest Wavelength [nm]", fontsize=18)
         plt.ylabel("Flux [W nm$^{-1}$ m$^{-2}$]", fontsize=18)
         plt.title(ide, fontsize=18)
         ax = plt.gca()
@@ -128,7 +128,7 @@ def Gaia_rvs(id_list, rv_table=None, plot=True, out_dir=None):
             ax.plot(wavelenght, flux, color='k')
             for wl in CaT:
                 plt.axvline(wl, linestyle='--', alpha=0.7, color='blue')
-            ax.set_xlabel(f'Wavelength [{inp_table["wavelength"].unit}]', fontsize=18)
+            ax.set_xlabel(f'Rest Wavelength [{inp_table["wavelength"].unit}]', fontsize=18)
             ax.set_ylabel('Normalized Flux', fontsize=18)
             ax.tick_params(axis='both', labelsize=18)
             if rv_table is not None:
@@ -151,7 +151,8 @@ def Gaia_rvs(id_list, rv_table=None, plot=True, out_dir=None):
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#
 
-def cafos_spectra(input_filename, asciicords, calibration='flux', dered=False, lines_file=None, plot=True, outdir=None):
+def cafos_spectra(input_filename, asciicords, xrange=[3500, 9501], calibration='flux', dered=None, 
+                  lines_file=None, priority=[1], plot=True, outdir=None):
     
     if asciicords is not None:
         fits_file = input_filename.split(".")[0]+'.fits'
@@ -173,10 +174,13 @@ def cafos_spectra(input_filename, asciicords, calibration='flux', dered=False, l
     if calibration == 'flux':
         data = Table.read(input_filename, format='ascii')
         
-        if dered:
-            #'deredden' flux using Fitzpatrick (1999)
+        if dered is not None:
             Av = table_coord['$A_V$'][table_coord['Gaia source ID']==int(source_name)][0]
-            flux = remove(fitzpatrick99(np.array(data['wavelength']), Av, 3.1), np.array(data['flux']))
+            #'deredden' flux using Fitzpatrick (1999)
+            if dered == 'fitz':
+                flux = remove(fitzpatrick99(np.array(data['wavelength']), Av, 3.1), np.array(data['flux']))
+            elif dered == 'calz':
+                flux = remove(calzetti00(np.array(data['wavelength']), Av, 3.1), np.array(data['flux']))
             plt.title(f'{source_name}, CAFOS dereddened Low res spectrum, $A_v$ = {Av}', fontsize=16, weight='bold')
         else:
             flux = data['flux']
@@ -197,17 +201,57 @@ def cafos_spectra(input_filename, asciicords, calibration='flux', dered=False, l
         ax.plot(wavelength.to(u.Angstrom), data[0], color='k')
         plt.title(source_name+', NO standard flux calibrated!', fontsize=16, weight='bold')
     
+    cmap = plt.get_cmap('rainbow')
     if lines_file is not None:
         trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
         lines = Table.read(lines_file, format='ascii')
-        for line, wl in zip(lines['line'], lines['wavelenght']):
-            ax.axvline(wl, ls='--', alpha=0.5)
-            plt.text(wl+11, 0.95, line, transform = trans, fontdict={'fontsize':12})
+        unique_priorities = np.unique(lines['prio'])
+        num_priorities = len(unique_priorities)
+        lines_sorted = lines[np.argsort(lines['wavelength'])]
+        prev_line_wl = None
+        prev_line_wl2 = None
+        prev_ymax = 0.85
+        # prev_ymax2 = 0.75
+        delta_perce2 = 1
+        for line, wl, prio in zip(lines_sorted['line'], lines_sorted['wavelength'], lines_sorted['prio']):
+            if (xrange[0] <= wl <= xrange[1]) & (prio in priority):
+                color = cmap(float(np.where(unique_priorities == prio)[0]) / (num_priorities - 1))
+                if prev_line_wl is not None:
+                    delta_wl = wl - prev_line_wl
+                    delta_perce = delta_wl / (xrange[1] - xrange[0])
+                    if prev_line_wl2 is not None:
+                        delta_wl2 = wl - prev_line_wl2
+                        delta_perce2 = delta_wl2 / (xrange[1] - xrange[0])
+                    if (delta_perce < 0.05) & (prev_ymax == 0.85) & (delta_perce2 > 0.02):
+                        ymax = 0.75
+                    elif (delta_perce < 0.05) & (prev_ymax == 0.85) & (delta_perce2 < 0.02):
+                        ymax = 0.65
+                    else:
+                        ymax = 0.85
+                else:
+                    ymax=0.85
+                ax.axvline(wl, ymax=ymax, ls='--', alpha=0.5, color=color)
+                plt.text(wl, ymax+0.03, line, transform = trans, fontdict={'fontsize':12}, rotation = 90, ha='center')
+                prev_line_wl2 = prev_line_wl
+                prev_line_wl = wl
+                # prev_ymax2 = prev_ymax
+                prev_ymax = ymax
     
-    ax.set_xlabel('Wavelength (Angstrom)', fontsize=15)
+    ax.set_xlabel('Rest Wavelength (Angstrom)', fontsize=15)
     ax.set_ylabel('Flux (number of counts)', fontsize=15)
-    ax.set_xticks(np.arange(3500, 9501, 500))
-    ax.set_xlim(left=3500, right=9501)
+    if (xrange[1] - xrange[0]) >= 2500:
+        ax.set_xticks(np.arange(xrange[0], xrange[1], 500))
+    ax.set_xlim(left=xrange[0], right=xrange[1])
+    if xrange!=[3500, 9501]:
+        xrange_mask = (xrange[0] < data['wavelength'])*(data['wavelength'] < xrange[1])
+        mean = np.mean(flux[xrange_mask])
+        flux_min = min(flux[xrange_mask])
+        flux_max = max(flux[xrange_mask])
+        ax.set_ylim(bottom=flux_min-0.15*mean, top=flux_max+0.15*mean)
+    else:
+        flux_max = max(flux)
+        mean = np.mean(flux)
+        ax.set_ylim(top=flux_max+1.2*mean)
     ax.tick_params(axis='both', which='major', labelsize=14)
     
     if plot:
@@ -221,7 +265,8 @@ def cafos_spectra(input_filename, asciicords, calibration='flux', dered=False, l
             plt.savefig(f'{outdir}/{source_name}.png', bbox_inches = "tight", format = "png")
         
         
-def lamost_spectra(input_filename, asciicords, lines_file=None, plot=True, outdir=None):
+def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250], 
+                   lines_file=None, priority=[1] ,plot=True, outdir=None):
     
     hdu = fits.open(input_filename)
     ra = hdu[0].header['RA']
@@ -246,22 +291,70 @@ def lamost_spectra(input_filename, asciicords, lines_file=None, plot=True, outdi
         data = hdu[1].data
         hdr = hdu[1].header
         
+        # if dered:
+        #     #'deredden' flux using Fitzpatrick (1999)
+        #     Av = table_coord['$A_V$'][table_coord['Gaia source ID']==int(source_name)][0]
+        #     flux = remove(fitzpatrick99(np.array(data['wavelength']), Av, 3.1), np.array(data['flux']))
+        #     plt.title(f'{source_name}, CAFOS dereddened Low res spectrum, $A_v$ = {Av}', fontsize=16, weight='bold')
+        # else:
+        #     flux = data['flux']
+        #     plt.title(source_name+', CAFOS Low res spectrum', fontsize=16, weight='bold')
+        
         fig, ax = plt.subplots(figsize=(12, 5))
-           
-        ax.plot(data['WAVELENGTH'][0], data['FLUX'][0], color='k')
+          
+        dirty_mask = (data['WAVELENGTH'][0] < 9000)*(data['FLUX'][0] > 375)
+        ax.plot(data['WAVELENGTH'][0][dirty_mask], data['FLUX'][0][dirty_mask], color='k')
         plt.title(f'{source_name}, LAMOST {resolu} spectrum', fontsize=16, weight='bold')
             
+        cmap = plt.get_cmap('rainbow')
         if lines_file is not None:
             trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
             lines = Table.read(lines_file, format='ascii')
-            for line, wl in zip(lines['line'], lines['wavelenght']):
-                ax.axvline(wl, ls='--', alpha=0.5)
-                plt.text(wl+11, 0.95, line, transform = trans, fontdict={'fontsize':12})
+            unique_priorities = np.unique(lines['prio'])
+            num_priorities = len(unique_priorities)
+            lines_sorted = lines[np.argsort(lines['wavelength'])]
+            prev_line_wl = None
+            prev_line_wl2 = None
+            prev_ymax = 0.85
+            # prev_ymax2 = 0.75
+            delta_perce2 = 1
+            for line, wl, prio in zip(lines_sorted['line'], lines_sorted['wavelength'], lines_sorted['prio']):
+                if (xrange[0] <= wl <= xrange[1]) & (prio in priority):
+                    color = cmap(float(np.where(unique_priorities == prio)[0]) / (num_priorities - 1))
+                    if prev_line_wl is not None:
+                        delta_wl = wl - prev_line_wl
+                        delta_perce = delta_wl / (xrange[1] - xrange[0])
+                        if prev_line_wl2 is not None:
+                            delta_wl2 = wl - prev_line_wl2
+                            delta_perce2 = delta_wl2 / (xrange[1] - xrange[0])
+                        if (delta_perce < 0.05) & (prev_ymax == 0.85) & (delta_perce2 > 0.02):
+                            ymax = 0.75
+                        elif (delta_perce < 0.05) & (prev_ymax == 0.85) & (delta_perce2 < 0.02):
+                            ymax = 0.65
+                        else:
+                            ymax = 0.85
+                    else:
+                        ymax=0.85
+                    ax.axvline(wl, ymax=ymax, ls='--', alpha=0.5, color=color)
+                    plt.text(wl, ymax+0.03, line, transform = trans, fontdict={'fontsize':12}, rotation = 90, ha='center')
+                    prev_line_wl2 = prev_line_wl
+                    prev_line_wl = wl
+                    # prev_ymax2 = prev_ymax
+                    prev_ymax = ymax
             
-        ax.set_xlabel('Wavelength (Angstrom)', fontsize=15)
+        ax.set_xlabel('Rest Wavelength (Angstrom)', fontsize=15)
         ax.set_ylabel('Flux (number of counts)', fontsize=15)
-        ax.set_xticks(np.arange(3500, 9501, 500))
-        ax.set_xlim(left=3500, right=9501)
+        if (xrange[1] - xrange[0]) >= 2500:
+            ax.set_xticks(np.arange(xrange[0], xrange[1], 500))
+        ax.set_xlim(left=xrange[0], right=xrange[1])
+        if xrange!=[3500, 9250]:
+            xrange_mask = (xrange[0] < data['WAVELENGTH'][0])*(data['WAVELENGTH'][0] < xrange[1])
+            flux_min = min(data['FLUX'][0][xrange_mask])
+            flux_max = max(data['FLUX'][0][xrange_mask])
+            ax.set_ylim(bottom=flux_min-50, top=flux_max+50)
+        else:
+            flux_max = max(data['FLUX'][0])
+            ax.set_ylim(top=flux_max+200)
         ax.tick_params(axis='both', which='major', labelsize=14)
             
         if plot:
@@ -291,22 +384,25 @@ def lamost_spectra(input_filename, asciicords, lines_file=None, plot=True, outdi
                 ax.plot(data['WAVELENGTH'][0], data['FLUX'][0], color='k')
                 plt.title(f'{source_name}-{band}, LAMOST {resolu} spectrum', fontsize=16, weight='bold')
                     
+                ax.set_xlabel('Rest Wavelength (Angstrom)', fontsize=15)
+                ax.set_ylabel('Flux (number of counts)', fontsize=15)
+                if band == 'COADD_B':
+                    xrange=[4850, 5401]
+                    ax.set_xticks(np.arange(4900, 5401, 50))
+                    ax.set_xlim(left=xrange[0], right=xrange[1])
+                elif band == 'COADD_R':
+                    xrange=[6200, 6901]
+                    ax.set_xticks(np.arange(6200, 6900, 50))
+                    ax.set_xlim(left=xrange[0], right=xrange[1])
+                ax.tick_params(axis='both', which='major', labelsize=14)
+                
                 if lines_file is not None:
                     trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
                     lines = Table.read(lines_file, format='ascii')
                     for line, wl in zip(lines['line'], lines['wavelenght']):
-                        ax.axvline(wl, ls='--', alpha=0.5)
-                        plt.text(wl+11, 0.95, line, transform = trans, fontdict={'fontsize':12})
-                    
-                ax.set_xlabel('Wavelength (Angstrom)', fontsize=15)
-                ax.set_ylabel('Flux (number of counts)', fontsize=15)
-                if band == 'COADD_B':
-                    ax.set_xticks(np.arange(4900, 5401, 50))
-                    ax.set_xlim(left=4850, right=5401)
-                elif band == 'COADD_R':
-                    ax.set_xticks(np.arange(6200, 6900, 50))
-                    ax.set_xlim(left=6200, right=6901)
-                ax.tick_params(axis='both', which='major', labelsize=14)
+                        if xrange[0] <= wl <= xrange[1]:
+                            ax.axvline(wl, ls='--', alpha=0.5)
+                            plt.text(wl+11, 0.95, line, transform = trans, fontdict={'fontsize':12})
                     
                 if plot:
                     plt.tight_layout()
@@ -333,7 +429,7 @@ def lamost_spectra(input_filename, asciicords, lines_file=None, plot=True, outdi
             ax.plot(spec['WAVELENGTH'][0], spec['FLUX'][0], label=spec_name)
         
         plt.title(f'{source_name}, Single exposures LAMOST {resolu} spectra', fontsize=16, weight='bold')
-        ax.set_xlabel('Wavelength (Angstrom)', fontsize=15)
+        ax.set_xlabel('Rest Wavelength (Angstrom)', fontsize=15)
         ax.set_ylabel('Flux (number of counts)', fontsize=15)
         ax.set_xticks(np.arange(4900, 5401, 50))
         ax.set_xlim(left=4850, right=5401)
@@ -358,7 +454,7 @@ def lamost_spectra(input_filename, asciicords, lines_file=None, plot=True, outdi
             ax.plot(spec['WAVELENGTH'][0], spec['FLUX'][0], label=spec_name)
         
         plt.title(f'{source_name}, Single exposures LAMOST {resolu} spectra', fontsize=16, weight='bold')
-        ax.set_xlabel('Wavelength (Angstrom)', fontsize=15)
+        ax.set_xlabel('Rest Wavelength (Angstrom)', fontsize=15)
         ax.set_ylabel('Flux (number of counts)', fontsize=15)
         ax.set_xticks(np.arange(6200, 6900, 50))
         ax.set_xlim(left=6200, right=6901)
