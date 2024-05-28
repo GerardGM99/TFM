@@ -18,7 +18,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.transforms as transforms
-import phot_utils # my own
 import seaborn as sns
 from astropy.timeseries import LombScargle
 import coord_utils # my own
@@ -642,6 +641,96 @@ def remove_outliers(y, method='median', n_std=3):
 #---------------------------------------------------------------------------------------------------------------#
 
 
+def bin_lightcurve(x, y, yerr=None, mode="average", binsize=3):
+    '''
+    Bins the lightcurve in bins of binsize.
+    '''
+
+    if binsize < 0:
+        return x, y, yerr
+    
+    if yerr is None:
+        yerr = np.zeros_like(y)
+    
+    if np.ndim(x) == 0:
+        x = np.array([x])
+        y = np.array([y])
+        yerr = np.array([yerr])
+    elif len(x) == 0:
+        return np.array([]), np.array([]), np.array([])
+        
+        
+    x_i = list(set(np.round(x/binsize) * binsize))
+    x_i.sort()
+    x_i = np.array(x_i)
+    y_o = []
+    yerr_o = []
+    x_o = []
+    xerr_o  = []
+    
+
+    for xi in x_i:
+        mask = np.abs(x-xi) < binsize/2.
+        mask = mask * ~(np.isnan(yerr))
+        #If we only have one register, no binning needed
+        if len(x[mask])==1:
+            x_o.append(x[mask][0])
+            y_o.append(y[mask][0])
+            xerr_o.append(0)
+
+            if not yerr is None:
+                yerr_o.append(yerr[mask][0])
+            else:
+                yerr_o.append([0])
+        elif np.any(mask):
+            #print ("OBJECTS PER EPOCH", len(y[mask]))
+           
+            x_o.append(np.average(x[mask]))
+            xerr_o.append(np.std(x[mask]))
+            #print(np.std(x[mask]))
+            if mode == "median":
+                y_o.append(np.median(y[mask]))
+                if not yerr is None:
+                    #yerr_o.append(np.sqrt(np.sum((yerr[mask])**2 ))/len(yerr[mask]))
+                    yerr_o.append(np.sqrt(np.sum((y[mask]-np.median(y[mask]))**2 ))/len(y[mask]))
+            else:
+                fluxes = 10**(-0.4*y[mask])
+                fluxerr = fluxes - 10**(-0.4*(y[mask] + yerr[mask]))
+                #fluxarr = np.array([ufloat(z1,z2) for z1,z2 in zip(fluxes, fluxerr)])
+                               
+                #Weighted mean:
+                #https://ned.ipac.caltech.edu/level5/Leo/Stats4_5.html
+                avgflux = np.nansum(fluxes/fluxerr**2) / np.nansum(1./fluxerr**2)
+                
+                #avgmag = -2.5 * np.log10(fluxarr.mean().n)
+                avgmag = -2.5 * np.log10(avgflux)
+                stdflux = np.sqrt(1./ np.nansum(1./fluxerr**2))
+                stdev = 2.5*stdflux/(avgflux*np.log(10))               
+                #stdev = np.abs(-2.5 * np.log10(fluxarr.mean().n) +2.5 * np.log10(fluxarr.mean().n + stdflux))
+                
+                # stdev_fl = np.std(fluxes[~np.isnan(fluxes)])
+                # stdev = np.abs(-2.5 * np.log10(fluxarr.mean().n) +2.5 * np.log10(fluxarr.mean().n + stdev_fl))
+                
+                #print (yerr[mask], len(fluxerr), stdev)
+                
+                #stdev = np.abs(-2.5 * np.log10(fluxarr.mean().n) +2.5 * np.log10(fluxarr.mean().n + fluxarr.mean().s))
+                
+                y_o.append(avgmag)
+                yerr_o.append(stdev)
+
+    x_o = np.array(x_o)
+    xerr_o = np.array(xerr_o)
+
+    y_o = np.array(y_o)
+    yerr_o = np.array(yerr_o)
+    
+    return x_o, y_o, xerr_o, yerr_o
+
+
+#---------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------#
+
+
 def plot_lightcurves(lc_dir, ref_mjd=58190.45, y_ax='mag', outliers='median', n_std=3, binsize=0, 
                      rang=None, plot=False, savefig=True):
     '''
@@ -702,40 +791,239 @@ def plot_lightcurves(lc_dir, ref_mjd=58190.45, y_ax='mag', outliers='median', n_
 #---------------------------------------------------------------------------------------------------------------#
 
 
-def plot_ind_lightcurves(file_name, ref_mjd=58190.45, y_ax='mag', outliers='median', n_std=3, binsize=0, rang=None, plot=False, savefig=True):
+# def plot_ind_lightcurves(file_name, ref_mjd=58190.45, y_ax='mag', outliers='median', n_std=3, binsize=0, rang=None, plot=False, savefig=True):
+#     '''
+#     Plots the light curve of the given file. The light curve files MUST
+#     be in the format given by the function lightcurve_utils.standard_table.
+#     If the data files has less than 5 points nothing is drawn and a message os
+#     returned.
+    
+#     Parameters
+#     ----------
+#     file: string
+#         File with the light curve data
+#     ref_mjd: float, optional
+#         Reference time given that the imput times are in MJD. The 58519.45
+#         that is setup coincides with the start of ZTF observations.
+#     y_ax: string, optional
+#         If the y axis is in magnitude or flux. Eihter 'mag' or 'flux'.
+#     outliers: string, optional
+#         The manner in which the outliers in magnitude/flux are removed. Either
+#         'iqr' (InterQuartile Range) or 'median' (None to not remove outliers).
+#     binsize: int, optional
+#         If greater than 0, bins the ligthcurve in bins with size binsize.
+#     rang: tuple of floats, otional
+#         The min and max values for the time range to plot. If None, all the 
+#         data points are ploted
+#     plot: boolean, optional
+#         If True, shows the plot
+#     safefig: boolean, optional
+#         If True, safe the figure in the directory '{ins}_plots' (e.g. plots for
+#         ZTF light curves would be stored in 'ZTF_plots')
+    
+#     Returns
+#     -------
+#     None
+
+#     '''
+    
+#     # Dictionary of colors for each instrument/filter combination
+#     color_dict = {
+#         ('ZTF', 'zg'):'g',
+#         ('ZTF', 'zr'):'r',
+#         ('ZTF', 'zi'):'goldenrod',
+#         ('IRSA_ZTF', 'zg'):'g',
+#         ('IRSA_ZTF', 'zr'):'r',
+#         ('IRSA_ZTF', 'zi'):'gold',
+#         ('ASAS-SN', 'V'):'darkcyan',
+#         ('ASAS-SN', 'g'):'blue',
+#         ('ATLAS', 'o'):'orange',
+#         ('ATLAS', 'c'):'cyan',
+#         ('NEOWISE', 'W1'):'darkred',
+#         ('NEOWISE', 'W2'):'slategray',
+#         ('BLACKGEM', 'u'):'purple',
+#         ('BLACKGEM', 'g'):'skyblue',
+#         ('BLACKGEM', 'r'):'orange',
+#         ('BLACKGEM', 'i'):'firebrick',
+#         ('BLACKGEM', 'z'):'sienna',
+#         ('BLACKGEM', 'q'):'black',
+#         ('MeerLICHT', 'u'):'purple',
+#         ('MeerLICHT', 'g'):'skyblue',
+#         ('MeerLICHT', 'r'):'orange',
+#         ('MeerLICHT', 'i'):'firebrick',
+#         ('MeerLICHT', 'z'):'sienna',
+#         ('MeerLICHT', 'q'):'black',
+#         ('TESS', 'QLP'):'magenta',
+#         ('TESS', 'SPOC'):'magenta',
+#         ('TESS', 'TASOC'):'magenta',
+#         ('TESS', 'CDIPS'):'magenta',
+#         ('TESS', 'TGLC'):'magenta',
+#         ('TESS', 'GSFC-ELEANOR-LITE'):'magenta'}
+    
+#     plt.ioff()
+#     #data_files_names_only = file_name.split(".csv")[0]
+#     # Read file
+#     file = Table.read(file_name, format='ascii.csv')
+#     if len(file)>4:
+#         ins = file['inst'][0]
+#         source_name = file['name'][0]
+#         out_path = f'{ins}_plots'
+#         if not os.path.isdir(out_path):
+#             os.makedirs(out_path)
+            
+#         if ins=='NEOWISE':
+#             ms=6
+#             cs=4
+#             ew=4
+#         else:
+#             ms=3
+#             cs=2
+#             ew=2
+            
+#         # Create figure and axes
+#         fig, ax = plt.subplots(constrained_layout=True)
+#         fig.set_size_inches(9,5.5)
+#         ax.grid(alpha=0.5)
+            
+#         # Plot the light curve for each filter
+#         available_filters=list(set(file['filter']))
+#         available_filters=sorted(available_filters)
+#         for band in available_filters:
+#             if y_ax=='mag':
+#                 # Remove outliers
+#                 #sigma = remove_outliers(file['mag'][file['filter']==band], method=outliers, n_std=n_std)
+                                    
+#                 # Select time, magnitudes and magnitude errors
+#                 t_observed = np.array(file["bjd"][file['filter']==band])#[sigma]
+#                 y_observed = np.array(file['mag'][file['filter']==band])#[sigma]
+#                 uncert = np.array(file["magerr"][file['filter']==band])#[sigma]
+                    
+#                 # Bin the data
+#                 if binsize > 0:
+#                     t_observed, y_observed, t_err, uncert =  bin_lightcurve(t_observed, y_observed, yerr=uncert, 
+#                                                                             binsize=binsize, mode="average")
+#                 else:
+#                     t_err=None
+                        
+#                 # Select only a set limited range of points to plot
+#                 if rang is not None:
+#                     mask = (t_observed > rang[0]) & (t_observed < rang[1])
+#                     t_observed = t_observed[mask]
+#                     y_observed = y_observed[mask]
+#                     uncert = uncert[mask]
+#                     if binsize > 0:
+#                         t_err = t_err[mask]
+                    
+#                 # Plot light curve
+#                 plot_color = color_dict.get((ins,band), 'black')
+#                 ax.errorbar(t_observed - ref_mjd, y_observed, xerr=t_err, yerr=uncert, color=plot_color, label=band, 
+#                             fmt = "o", capsize=cs, elinewidth=ew, markersize=ms, markeredgecolor='black', markeredgewidth=0.4)
+#                 ax.set_ylabel("Magnitude", family = "serif", fontsize = 16)
+                    
+#             if y_ax=='flux':
+#                 # Remove outliers
+#                 sigma = remove_outliers(file['flux'][file['filter']==band], method=outliers)
+                    
+#                 # Select time, magnitudes and magnitude errors
+#                 t_observed = np.array(file["bjd"][file['filter']==band])[sigma]
+#                 y_observed = np.array(file['flux'][file['filter']==band])[sigma]
+#                 uncert = np.array(file["fluxerr"][file['filter']==band])[sigma]
+                
+#                 # Select only a set limited range of points to plot
+#                 if rang is not None:
+#                     mask = (t_observed > rang[0]) & (t_observed < rang[1])
+#                     t_observed = t_observed[mask]
+#                     y_observed = y_observed[mask]
+#                     uncert = uncert[mask]
+                    
+#                 # Plot light curve
+#                 plot_color = color_dict.get((ins,band), 'black')
+#                 ax.errorbar(t_observed - ref_mjd, y_observed, yerr=uncert, color=plot_color, label=band, 
+#                             fmt = "o", capsize=cs, elinewidth=ew, markersize=ms, markeredgecolor='black', markeredgewidth=0.4)
+#                 ax.set_ylabel("Flux", family = "serif", fontsize = 16)
+                    
+                    
+#         ax.set_title(f"{source_name}", weight = "bold") # Gaia DR3 
+#         ax.set_xlabel(f"MJD - {ref_mjd} [days]", family = "serif", fontsize = 16)
+#         ax.tick_params(which='major', width=2, direction='out')
+#         ax.tick_params(which='major', length=7)
+#         ax.tick_params(which='minor', length=4, direction='out')
+#         ax.tick_params(labelsize = 16)
+#         ax.minorticks_on()
+#         ax.invert_yaxis()
+#         xmin, xmax = ax.get_xlim()    
+        
+#         ref_mjd = 58190.45
+#         def xconv(x):
+#             tyear = Time(x+ref_mjd, format="mjd")
+#             return tyear.jyear # days to years
+#         xmin2 = xconv(xmin)
+#         xmax2 = xconv(xmax)
+        
+#         ay2 = plt.twiny()
+#         ay2.minorticks_on()
+#         ay2.tick_params(which='major', width=2, direction='out')
+#         ay2.tick_params(which='major', length=7)
+#         ay2.tick_params(which='minor', length=4, direction='out')
+#         ay2.tick_params(labelsize = 16)
+#         ay2.set_xlim([xmin2, xmax2])
+#         ay2.set_xlabel('Year', fontsize=16)
+#         ay2.ticklabel_format(useOffset=False)
+            
+                
+#         colors_for_filters = [color_dict.get((ins, filt), None) for filt in available_filters]
+                
+#         ax.legend(loc = "upper right", ncols = len(available_filters), labelcolor = colors_for_filters, 
+#                   shadow = True, columnspacing = 0.8, handletextpad = 0.5, handlelength = 1, markerscale = 1.5, 
+#                   prop = {"weight" : "bold"})
+        
+#         if savefig == True:
+#             plt.savefig(f'{out_path}/{source_name}.png', bbox_inches = "tight", format = "png")
+        
+#         if plot == True:
+#             plt.show()
+        
+#         plt.close()
+        
+#     else:
+#         print('Less than 5 points in the time series for source '+str(file['name'][0]))
+
+
+def plot_ind_lightcurves(file_name, ref_mjd=58190.45, y_ax='mag', outliers='median', n_std=3, binsize=0, rang=None, plot=False, savefig=True, ax=None):
     '''
     Plots the light curve of the given file. The light curve files MUST
     be in the format given by the function lightcurve_utils.standard_table.
-    If the data files has less than 5 points nothing is drawn and a message os
+    If the data files has less than 5 points nothing is drawn and a message is
     returned.
     
     Parameters
     ----------
-    file: string
+    file_name: string
         File with the light curve data
     ref_mjd: float, optional
-        Reference time given that the imput times are in MJD. The 58519.45
+        Reference time given that the input times are in MJD. The 58519.45
         that is setup coincides with the start of ZTF observations.
     y_ax: string, optional
-        If the y axis is in magnitude or flux. Eihter 'mag' or 'flux'.
+        If the y axis is in magnitude or flux. Either 'mag' or 'flux'.
     outliers: string, optional
         The manner in which the outliers in magnitude/flux are removed. Either
         'iqr' (InterQuartile Range) or 'median' (None to not remove outliers).
     binsize: int, optional
-        If greater than 0, bins the ligthcurve in bins with size binsize.
-    rang: tuple of floats, otional
+        If greater than 0, bins the lightcurve in bins with size binsize.
+    rang: tuple of floats, optional
         The min and max values for the time range to plot. If None, all the 
-        data points are ploted
+        data points are plotted
     plot: boolean, optional
         If True, shows the plot
-    safefig: boolean, optional
-        If True, safe the figure in the directory '{ins}_plots' (e.g. plots for
+    savefig: boolean, optional
+        If True, saves the figure in the directory '{ins}_plots' (e.g. plots for
         ZTF light curves would be stored in 'ZTF_plots')
+    ax: matplotlib.axes._subplots.AxesSubplot, optional
+        The Axes object to plot on. If None, a new figure is created. The default is None.
     
     Returns
     -------
     None
-
     '''
     
     # Dictionary of colors for each instrument/filter combination
@@ -764,59 +1052,52 @@ def plot_ind_lightcurves(file_name, ref_mjd=58190.45, y_ax='mag', outliers='medi
         ('MeerLICHT', 'i'):'firebrick',
         ('MeerLICHT', 'z'):'sienna',
         ('MeerLICHT', 'q'):'black',
-        ('TESS, QLP'):'magenta',
-        ('TESS, SPOC'):'magenta',
-        ('TESS, TASOC'):'magenta',
-        ('TESS, CDIPS'):'magenta',
-        ('TESS, TGLC'):'magenta',
-        ('TESS, GSFC-ELEANOR-LITE'):'magenta'}
+        ('TESS', 'QLP'):'magenta',
+        ('TESS', 'SPOC'):'magenta',
+        ('TESS', 'TASOC'):'magenta',
+        ('TESS', 'CDIPS'):'magenta',
+        ('TESS', 'TGLC'):'magenta',
+        ('TESS', 'GSFC-ELEANOR-LITE'):'magenta'}
     
     plt.ioff()
-    #data_files_names_only = file_name.split(".csv")[0]
-    # Read file
     file = Table.read(file_name, format='ascii.csv')
-    if len(file)>4:
+    if len(file) > 4:
         ins = file['inst'][0]
         source_name = file['name'][0]
         out_path = f'{ins}_plots'
         if not os.path.isdir(out_path):
             os.makedirs(out_path)
             
-        if ins=='NEOWISE':
-            ms=6
-            cs=4
-            ew=4
+        if ins == 'NEOWISE':
+            ms = 6
+            cs = 4
+            ew = 4
         else:
-            ms=3
-            cs=2
-            ew=2
+            ms = 3
+            cs = 2
+            ew = 2
             
-        # Create figure and axes
-        fig, ax = plt.subplots(constrained_layout=True)
-        fig.set_size_inches(9,5.5)
-        ax.grid(alpha=0.5)
+        if ax is None:
+            fig, ax = plt.subplots(constrained_layout=True)
+            fig.set_size_inches(9, 5.5)
+            ax.grid(alpha=0.5)
             
-        # Plot the light curve for each filter
-        available_filters=list(set(file['filter']))
-        available_filters=sorted(available_filters)
+        available_filters = sorted(set(file['filter']))
         for band in available_filters:
-            if y_ax=='mag':
-                # Remove outliers
-                #sigma = remove_outliers(file['mag'][file['filter']==band], method=outliers, n_std=n_std)
-                                    
-                # Select time, magnitudes and magnitude errors
-                t_observed = np.array(file["mjd"][file['filter']==band])#[sigma]
-                y_observed = np.array(file['mag'][file['filter']==band])#[sigma]
-                uncert = np.array(file["magerr"][file['filter']==band])#[sigma]
-                    
-                # Bin the data
-                if binsize > 0:
-                    t_observed, y_observed, t_err, uncert =  phot_utils.bin_lightcurve(t_observed, y_observed, yerr=uncert, 
-                                                                                       binsize=binsize, mode="average")
+            if y_ax == 'mag':
+                if ins == 'NEOWISE':
+                    t_observed = np.array(file["mjd"][file['filter'] == band])
                 else:
-                    t_err=None
+                    t_observed = np.array(file["bjd"][file['filter'] == band])
+                y_observed = np.array(file['mag'][file['filter'] == band])
+                uncert = np.array(file["magerr"][file['filter'] == band])
+                    
+                if binsize > 0:
+                    t_observed, y_observed, t_err, uncert = bin_lightcurve(t_observed, y_observed, yerr=uncert, 
+                                                                            binsize=binsize, mode="average")
+                else:
+                    t_err = None
                         
-                # Select only a set limited range of points to plot
                 if rang is not None:
                     mask = (t_observed > rang[0]) & (t_observed < rang[1])
                     t_observed = t_observed[mask]
@@ -825,76 +1106,72 @@ def plot_ind_lightcurves(file_name, ref_mjd=58190.45, y_ax='mag', outliers='medi
                     if binsize > 0:
                         t_err = t_err[mask]
                     
-                # Plot light curve
-                plot_color = color_dict.get((ins,band), 'black')
+                plot_color = color_dict.get((ins, band), 'black')
+                if ins=='NEOWISE':
+                    ax.plot(t_observed - ref_mjd, y_observed, linestyle='--', color=plot_color, alpha=0.5)
                 ax.errorbar(t_observed - ref_mjd, y_observed, xerr=t_err, yerr=uncert, color=plot_color, label=band, 
-                            fmt = "o", capsize=cs, elinewidth=ew, markersize=ms, markeredgecolor='black', markeredgewidth=0.4)
-                ax.set_ylabel("Magnitude", family = "serif", fontsize = 16)
+                            fmt="o", capsize=cs, elinewidth=ew, markersize=ms, markeredgecolor='black', markeredgewidth=0.4)
+                ax.set_ylabel("Magnitude", family="serif", fontsize=16)
                     
-            if y_ax=='flux':
-                # Remove outliers
-                sigma = remove_outliers(file['flux'][file['filter']==band], method=outliers)
+            if y_ax == 'flux':
+                sigma = remove_outliers(file['flux'][file['filter'] == band], method=outliers)
                     
-                # Select time, magnitudes and magnitude errors
-                t_observed = np.array(file["mjd"][file['filter']==band])[sigma]
-                y_observed = np.array(file['flux'][file['filter']==band])[sigma]
-                uncert = np.array(file["fluxerr"][file['filter']==band])[sigma]
+                t_observed = np.array(file["bjd"][file['filter'] == band])[sigma]
+                y_observed = np.array(file['flux'][file['filter'] == band])[sigma]
+                uncert = np.array(file["fluxerr"][file['filter'] == band])[sigma]
                 
-                # Select only a set limited range of points to plot
                 if rang is not None:
                     mask = (t_observed > rang[0]) & (t_observed < rang[1])
                     t_observed = t_observed[mask]
                     y_observed = y_observed[mask]
                     uncert = uncert[mask]
                     
-                # Plot light curve
-                plot_color = color_dict.get((ins,band), 'black')
+                plot_color = color_dict.get((ins, band), 'black')
                 ax.errorbar(t_observed - ref_mjd, y_observed, yerr=uncert, color=plot_color, label=band, 
-                            fmt = "o", capsize=cs, elinewidth=ew, markersize=ms, markeredgecolor='black', markeredgewidth=0.4)
-                ax.set_ylabel("Flux", family = "serif", fontsize = 16)
+                            fmt="o", capsize=cs, elinewidth=ew, markersize=ms, markeredgecolor='black', markeredgewidth=0.4)
+                ax.set_ylabel("Flux", family="serif", fontsize=16)
                     
-                    
-        ax.set_title(f"{source_name}", weight = "bold") # Gaia DR3 
-        ax.set_xlabel(f"MJD - {ref_mjd} [days]", family = "serif", fontsize = 16)
+        ax.set_title(f"{source_name}", weight="bold") 
+        ax.set_xlabel(f"MJD - {ref_mjd} [days]", family="serif", fontsize=16)
         ax.tick_params(which='major', width=2, direction='out')
         ax.tick_params(which='major', length=7)
         ax.tick_params(which='minor', length=4, direction='out')
-        ax.tick_params(labelsize = 16)
+        ax.tick_params(labelsize=16)
         ax.minorticks_on()
         ax.invert_yaxis()
         xmin, xmax = ax.get_xlim()    
         
-        ref_mjd = 58190.45
         def xconv(x):
-            tyear = Time(x+ref_mjd, format="mjd")
-            return tyear.jyear # days to years
+            tyear = Time(x + ref_mjd, format="mjd")
+            return tyear.jyear 
+        
         xmin2 = xconv(xmin)
         xmax2 = xconv(xmax)
         
-        ay2 = plt.twiny()
+        ay2 = ax.twiny()
         ay2.minorticks_on()
         ay2.tick_params(which='major', width=2, direction='out')
         ay2.tick_params(which='major', length=7)
         ay2.tick_params(which='minor', length=4, direction='out')
-        ay2.tick_params(labelsize = 16)
+        ay2.tick_params(labelsize=16)
         ay2.set_xlim([xmin2, xmax2])
         ay2.set_xlabel('Year', fontsize=16)
         ay2.ticklabel_format(useOffset=False)
             
-                
         colors_for_filters = [color_dict.get((ins, filt), None) for filt in available_filters]
                 
-        ax.legend(loc = "upper right", ncols = len(available_filters), labelcolor = colors_for_filters, 
-                  shadow = True, columnspacing = 0.8, handletextpad = 0.5, handlelength = 1, markerscale = 1.5, 
-                  prop = {"weight" : "bold"})
+        ax.legend(loc="upper right", ncols=len(available_filters), labelcolor=colors_for_filters, 
+                  shadow=True, columnspacing=0.8, handletextpad=0.5, handlelength=1, markerscale=1.5, 
+                  prop={"weight": "bold"})
         
-        if savefig == True:
-            plt.savefig(f'{out_path}/{source_name}.png', bbox_inches = "tight", format = "png")
+        if savefig:
+            plt.savefig(f'{out_path}/{source_name}.png', bbox_inches="tight", format="png")
         
-        if plot == True:
+        if plot:
             plt.show()
         
-        plt.close()
+        if ax is None:
+            plt.close()
         
     else:
         print('Less than 5 points in the time series for source '+str(file['name'][0]))
@@ -1168,6 +1445,10 @@ def lc_combined(name, t_list, y_list, y_list_err, filt_list, best_freq, t_start=
             plot_color = color_dict.get(filt_list[i], 'black')
             for j in range(4):
                 errorbars[j].set_color(plot_color)
+            if filt_list[i].split(',')[0]=='TESS':
+                errorbars[1].remove()
+                errorbars[2].remove()
+                errorbars[3].remove()
             ax.set_title('')
             trans = transforms.blended_transform_factory(ax.transAxes, ax.transAxes)
             ax.text(0.02,0.93, filt_list[i], fontsize=18, transform = trans, style='italic')
@@ -1198,7 +1479,7 @@ def bulk_combine(name, instruments, best_freq, cycles=2, outliers='eb'):
         Name of the source.
     instruments : list of strings
         Instruments from which the data is taken from. Available now are: 
-            ZTF, IRSA_ZTF, ATLAS, ASAS_SN, NEOWISE, BLACKGEM.
+            ZTF, IRSA_ZTF, ATLAS, ASAS-SN, NEOWISE, BLACKGEM, TESS.
     best_freq : float
         Value of the frequency to fold the light curve at..
 
@@ -1218,6 +1499,22 @@ def bulk_combine(name, instruments, best_freq, cycles=2, outliers='eb'):
         else:
             table = pd.read_csv(f'{ins}_lightcurves_std/{name}.csv')
         bands=list(set(table['filter']))
+        if 'ZTF' in ins:
+            desired_order = ['zg', 'zr', 'zi']
+            def sort_key(band):
+                return desired_order.index(band)
+            bands.sort(key=sort_key)
+        elif 'ATLAS' in ins:
+            desired_order = ['c', 'o']
+            def sort_key(band):
+                return desired_order.index(band)
+            bands.sort(key=sort_key)
+        elif 'ASAS' in ins:
+            desired_order = ['g', 'V']
+            def sort_key(band):
+                return desired_order.index(band)
+            bands.sort(key=sort_key)
+            
         for i, band in enumerate(bands):
             t=table['bjd'].loc[table['filter']==band]
             if ins=='TESS':
@@ -1275,7 +1572,7 @@ def lomb_scargle(t, y, yerr=None, fmin=None, fmax=None, plot=True):
     '''
     
     # Remove outliers
-    sigma = remove_outliers(y)
+    sigma = remove_outliers(y, method='eb')
     
     # Variables to input into the FINKER script
     t = np.array(t)[sigma]

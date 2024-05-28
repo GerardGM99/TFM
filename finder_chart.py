@@ -623,7 +623,7 @@ if __name__ == '__main__':
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#
 
-def draw_image(ra, dec, name, rad, debug=False, directory=".", image_file=None, ext="pdf", save=False, plot=True):
+def draw_image(ra, dec, name, rad, debug=False, directory=".", image_file=None, ext="pdf", save=False, plot=True, ax=None):
     '''
     Creates image for the object with the specified name and coordinates.
     
@@ -653,86 +653,183 @@ def draw_image(ra, dec, name, rad, debug=False, directory=".", image_file=None, 
         True to show the plot.
     '''
         
-    print ("Got it")
     try:
-        ra=np.double(ra)
-        dec=np.double(dec)
+        ra = np.double(ra)
+        dec = np.double(dec)
     except:
-        ra, dec = hour2deg(ra, dec) 
+        ra, dec = hour2deg(ra, dec)
 
-    
-    print ('Image file:', image_file)
-
-    #If no custom fits image is provided, we query for one from PS1/DSS/SkyMapper
     if image_file is None:
-        image_file = get_fits_image(ra, dec, rad, debug=debug)    
+        image_file = get_fits_image(ra, dec, rad, debug=debug)
         image = fits.open(image_file, ignore_missing_end=True)
-        wcs = astropy.wcs.WCS(image[0].header)
+        wcs = WCS(image[0].header)
     else:
-        print ('Reading custom fits')
+        print('Reading custom fits')
         image = fits.open(image_file, ignore_missing_end=True)
-        # Get pixel coordinates of SN, reference stars in DSS image
-        wcs = astropy.wcs.WCS(fits.open(image_file, ignore_missing_end=True)[0].header)
-        
+        wcs = WCS(image[0].header)
+
         try:
             image[0].data = np.rot90(np.rot90(image[0].data))
         except ValueError:
-            print ('Rotation failed')
-
+            print('Rotation failed')
 
     if image_file is None or image is None:
-        print ("FATAL ERROR! Your FITS image could not be retrieved.")
+        print("FATAL ERROR! Your FITS image could not be retrieved.")
         return
-        
-    
-    # Plot finder chart
-    
-    #Adjust some of the counts to make easier the plotting.
-    image[0].data[image[0].data>20000] = 20000
+
+    image[0].data[image[0].data > 20000] = 20000
     image[0].data[np.isnan(image[0].data)] = 0
 
+    if ax is None:
+        fig = plt.figure(figsize=(8, 6))
+        ax = fig.add_subplot(111, projection=wcs)
+        plt.set_cmap('gray_r')
+    else:
+        fig = ax.figure
+        fig.delaxes(ax)
+        ax = fig.add_subplot(ax.get_subplotspec(), projection=wcs)
+        plt.set_cmap('gray_r')
 
-    plt.figure(figsize=(8, 6))
-    plt.set_cmap('gray_r')
     smoothedimage = gaussian_filter(image[0].data, 1.1)
-    
-    hdu = fits.open(image_file, ignore_missing_end=True)[0]
-    wcs = WCS(hdu.header)
-    
-    plt.subplot(projection=wcs)
-    #plt.imshow(hdu.data, vmin=-2.e-5, vmax=2.e-4, origin='lower')
-    plt.grid(color='white', ls='solid')
-    plt.imshow(smoothedimage, origin='lower',vmin=np.percentile(smoothedimage.flatten(), 1), \
-    vmax=np.percentile(smoothedimage.flatten(), 99))
 
-    #Mark target in green
-    ax = plt.gca()
-    # r = SphericalCircle((ra * u.deg, dec * u.deg), 2 * u.arcsec,
-    #                      edgecolor='green', facecolor='none',
-    #                      transform=ax.get_transform('fk5'))
-    # ax.add_patch(r)
-    plt.plot(ra*u.deg, dec*u.deg, '+', c='green', markersize=10, markeredgewidth=2, markeredgecolor='green',
-             transform=ax.get_transform('fk5'))
-    
-    #Write the name of the target
-    plt.title(name, fontsize=15, weight='bold')
-    #plt.annotate(name, xy=(ra, dec),  xycoords='data', xytext=(0.55, 0.5), textcoords='axes fraction', color="g")
+    ax.imshow(smoothedimage, origin='lower', vmin=np.percentile(smoothedimage.flatten(), 1),
+              vmax=np.percentile(smoothedimage.flatten(), 99))
+    ax.grid(color='white', ls='solid')
 
-    # Plot compass
-    plt.plot([(image[0].data.shape[0])-8,(image[0].data.shape[0]-28)],[8,8], 'k-', lw=2)
-    plt.plot([(image[0].data.shape[0])-8,(image[0].data.shape[0])-8],[8,28], 'k-', lw=2)
-    plt.annotate("N", xy=((image[0].data.shape[0])-15, 30),  xycoords='data', xytext=(-4,5), textcoords='offset points')
-    plt.annotate("E", xy=((image[0].data.shape[0])-30, 15),  xycoords='data', xytext=(-12,-5), textcoords='offset points')
+    ax.plot(ra * u.deg, dec * u.deg, '+', c='green', markersize=10, markeredgewidth=2, markeredgecolor='green',
+            transform=ax.get_transform('fk5'))
 
-    ax.set_xlabel('%.1f\''%(rad*60*2))
-    ax.set_ylabel('%.1f\''%(rad*60*2))
-    
-    # Save to pdf
+    ax.set_title(name, fontsize=15, weight='bold')
+
+    ax.plot([(image[0].data.shape[0]) - 8, (image[0].data.shape[0] - 28)], [8, 8], 'k-', lw=2)
+    ax.plot([(image[0].data.shape[0]) - 8, (image[0].data.shape[0]) - 8], [8, 28], 'k-', lw=2)
+    ax.annotate("N", xy=((image[0].data.shape[0]) - 15, 30), xycoords='data', xytext=(-4, 5), textcoords='offset points')
+    ax.annotate("E", xy=((image[0].data.shape[0]) - 30, 15), xycoords='data', xytext=(-12, -5), textcoords='offset points')
+
+    ax.set_xlabel('%.1f\'' % (rad * 60 * 2))
+    ax.set_ylabel('%.1f\'' % (rad * 60 * 2))
+
     if save:
-        pylab.savefig(os.path.join(directory, str(str(name)+'_image.%s'%ext)))
-        if debug: print ("Saved to %s"%os.path.join(directory, str(str(name)+'_finder.%s'%ext)))
-        pylab.close("all")
-        
+        plt.savefig(os.path.join(directory, f"{name}_image.{ext}"))
+        if debug:
+            print(f"Saved to {os.path.join(directory, f'{name}_finder.{ext}')}")
+        plt.close()
+
     if plot:
         plt.show()
-        plt.close()
+
+    return ax
+
+# def draw_image(ra, dec, name, rad, debug=False, directory=".", image_file=None, ext="pdf", save=False, plot=True, ax=None):
+#     '''
+#     Creates image for the object with the specified name and coordinates.
+    
+#     Parameters
+#     ----------
+#     ra : double
+#         RA of our target in degrees.
+#     dec : double
+#         DEC of our target in degrees.
+#     name : str
+#         The name of your target
+#     rad : double
+#         Search radius for the finder in degrees.
+#     debug : bool (optional)
+#         Option to activate/ deactivate additional output.
+#     directory : str (optional)
+#         The directory where the PDF with the finder chart shall be stored. 
+#         If no value given, the file will be store in the current directory where the script is run.
+#     image_file : str (optional)
+#         The name of the fits file that you want to use as a background to your finder chart. If none, provided,
+#         the script will automatically look for imaging catalogues: PS1 (North), SkyMapper (South), or DSS
+#     ext : str (optional)
+#         Extension of the output file. By default is a PDF, but can be a PNG or JPG for example.
+#     save : bool (optional)
+#         True to save the file with extension "ext".
+#     plot : bool (optional)
+#         True to show the plot.
+#     '''
+        
+#     # print ("Got it")
+#     try:
+#         ra=np.double(ra)
+#         dec=np.double(dec)
+#     except:
+#         ra, dec = hour2deg(ra, dec) 
+
+    
+#     # print ('Image file:', image_file)
+
+#     #If no custom fits image is provided, we query for one from PS1/DSS/SkyMapper
+#     if image_file is None:
+#         image_file = get_fits_image(ra, dec, rad, debug=debug)    
+#         image = fits.open(image_file, ignore_missing_end=True)
+#         wcs = astropy.wcs.WCS(image[0].header)
+#     else:
+#         print ('Reading custom fits')
+#         image = fits.open(image_file, ignore_missing_end=True)
+#         # Get pixel coordinates of SN, reference stars in DSS image
+#         wcs = astropy.wcs.WCS(fits.open(image_file, ignore_missing_end=True)[0].header)
+        
+#         try:
+#             image[0].data = np.rot90(np.rot90(image[0].data))
+#         except ValueError:
+#             print ('Rotation failed')
+
+
+#     if image_file is None or image is None:
+#         print ("FATAL ERROR! Your FITS image could not be retrieved.")
+#         return
+        
+    
+#     # Plot finder chart
+    
+#     #Adjust some of the counts to make easier the plotting.
+#     image[0].data[image[0].data>20000] = 20000
+#     image[0].data[np.isnan(image[0].data)] = 0
+
+
+#     plt.figure(figsize=(8, 6))
+#     plt.set_cmap('gray_r')
+#     smoothedimage = gaussian_filter(image[0].data, 1.1)
+    
+#     hdu = fits.open(image_file, ignore_missing_end=True)[0]
+#     wcs = WCS(hdu.header)
+    
+#     plt.subplot(projection=wcs)
+#     #plt.imshow(hdu.data, vmin=-2.e-5, vmax=2.e-4, origin='lower')
+#     plt.grid(color='white', ls='solid')
+#     plt.imshow(smoothedimage, origin='lower',vmin=np.percentile(smoothedimage.flatten(), 1), \
+#     vmax=np.percentile(smoothedimage.flatten(), 99))
+
+#     #Mark target in green
+#     ax = plt.gca()
+#     # r = SphericalCircle((ra * u.deg, dec * u.deg), 2 * u.arcsec,
+#     #                      edgecolor='green', facecolor='none',
+#     #                      transform=ax.get_transform('fk5'))
+#     # ax.add_patch(r)
+#     plt.plot(ra*u.deg, dec*u.deg, '+', c='green', markersize=10, markeredgewidth=2, markeredgecolor='green',
+#               transform=ax.get_transform('fk5'))
+    
+#     #Write the name of the target
+#     plt.title(name, fontsize=15, weight='bold')
+#     #plt.annotate(name, xy=(ra, dec),  xycoords='data', xytext=(0.55, 0.5), textcoords='axes fraction', color="g")
+
+#     # Plot compass
+#     plt.plot([(image[0].data.shape[0])-8,(image[0].data.shape[0]-28)],[8,8], 'k-', lw=2)
+#     plt.plot([(image[0].data.shape[0])-8,(image[0].data.shape[0])-8],[8,28], 'k-', lw=2)
+#     plt.annotate("N", xy=((image[0].data.shape[0])-15, 30),  xycoords='data', xytext=(-4,5), textcoords='offset points')
+#     plt.annotate("E", xy=((image[0].data.shape[0])-30, 15),  xycoords='data', xytext=(-12,-5), textcoords='offset points')
+
+#     ax.set_xlabel('%.1f\''%(rad*60*2))
+#     ax.set_ylabel('%.1f\''%(rad*60*2))
+    
+#     # Save to pdf
+#     if save:
+#         pylab.savefig(os.path.join(directory, str(str(name)+'_image.%s'%ext)))
+#         if debug: print ("Saved to %s"%os.path.join(directory, str(str(name)+'_finder.%s'%ext)))
+#         pylab.close("all")
+        
+#     if plot:
+#         plt.show()
+#         plt.close()

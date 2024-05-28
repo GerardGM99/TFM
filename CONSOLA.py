@@ -8,19 +8,22 @@ Created on Sun Feb 25 13:15:25 2024
 
 from lightcurve_utils import standard_table
 
-standard_table('TESS', 'TESS_lightcurves', 'data/70_targets.csv')
+standard_table('NEOWISE', 'data/70_table_irsa_NEOWISE.csv', 'data/70_targets.csv')
 
 #%%
 
-from lightcurve_utils import plot_lightcurves
+from lightcurve_utils import plot_lightcurves, plot_ind_lightcurves
 
-plot_lightcurves('IRSA_ZTF_lightcurves_std', outliers='eb')
+# plot_lightcurves('IRSA_ZTF_lightcurves_std', outliers='eb')
+
+plot_ind_lightcurves('TESS_lightcurves_std/187219239343050880_S19_QLP.csv', ref_mjd=58190.45, y_ax='flux',plot=True, savefig=False)
 
 #%%
 from Finker_script import use_finker
     
 lc_directory='IRSA_ZTF_lightcurves_std'
 tab = use_finker(lc_directory, freq_range=100, freq_step=250000)
+
 
 # instru = ['ZTF']
 # for ins in instru:
@@ -50,7 +53,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-bulk_combine('5311969857556479616_S08_GSFC-ELEANOR-LITE', ['ATLAS', 'TESS'], 1/(13.7444267), cycles=1, outliers='eb')
+bulk_combine('2206767944881247744', ['IRSA_ZTF'], 2.5944720347155257, cycles=2, outliers='median')
 
 # plt.tight_layout()
 # plt.show()
@@ -61,14 +64,16 @@ import pandas as pd
 import astropy.units as u
 from lightcurve_utils import lomb_scargle
 from astropy.timeseries import BoxLeastSquares
-import matplotlib.pyplot as plt                  
+import matplotlib.pyplot as plt
+import Finker_script as fink                 
 
 
-table = pd.read_csv('TESS_lightcurves_std/5311969857556479616_S62_QLP.csv')
-#band=list(set(table['filter']))[0]
-t = np.array(table['bjd'])
-y = np.array(table['flux'])
-# yerr = np.array(table['fluxerr'])
+table = pd.read_csv('IRSA_ZTF_lightcurves_std/2060841448854265216.csv')
+band=list(set(table['filter']))[0]
+mask = table['filter'] == band
+t = np.array(table['bjd'][mask])
+y = np.array(table['mag'][mask])
+yerr = np.array(table['magerr'][mask])
 
 # frequency, power = LombScargle(t, y, dy=yerr).autopower(minimum_frequency=0.001/u.d,
 #                                                         maximum_frequency=100/u.d)
@@ -80,15 +85,18 @@ y = np.array(table['flux'])
 # plt.plot(frequency, power)
 # plt.show()
 
-# lomb_scargle(t, y, yerr=None, fmin=0.01, fmax=20, plot=True)
+# _ = lomb_scargle(t, y, yerr=yerr, fmin=0.01, fmax=0.03, plot=True)
+
+freq = np.linspace(0.001,2.5,15000)
+_ = fink.Finker_mag(t, y, yerr, freq, show_plot=True, calc_error=False)
 
 
-model = BoxLeastSquares(t * u.day, y)
-periodogram = model.autopower(0.2)
-period = periodogram.period[np.argmax(periodogram.power)]
+# model = BoxLeastSquares(t * u.day, y)
+# periodogram = model.autopower(0.2)
+# period = periodogram.period[np.argmax(periodogram.power)]
 
-# plt.scatter(t/period.value % 1, y, s=5)
-plt.plot(periodogram.period, periodogram.power)
+# # plt.scatter(t/period.value % 1, y, s=5)
+# plt.plot(periodogram.period, periodogram.power)
 
 
 #%%
@@ -376,23 +384,41 @@ plt.show()
 
 from spectra_utils import cafos_spectra
 from spectra_utils import lamost_spectra
+from spectra_utils import spectrum
+import pandas as pd
 import os
 
+name = '4299904519833646080'
 directory = 'data/cafos_spectra'
 files = os.listdir(directory)
+# spec = pd.read_csv(f'{directory}/{name}.txt', sep=' ')
+# wavelength = spec['wavelength']
+# flux = spec['flux']
 
-# xrange=[4810, 4910]
-cafos_spectra(f'{directory}/spectra1D_dswfz_uniB_0200.txt', 'data/TFM_table.csv', 
-              lines_file='data/spectral_lines.txt', priority=[1, 2], plot=True, dered='fitz')
+xrange=[4810, 4910]
+# cafos_spectra(f'{directory}/spectra1D_dswfz_uniB_0208.txt', 'data/TFM_table.csv', xrange=[4800, 4880],
+#               lines_file='data/spectral_lines.txt', priority=[1], plot=True, dered=None)
 # lamost_spectra(f'{directory}/spec-55977-GAC_080N37_V1_sp03-241.fits', 'data/70_targets.csv', xrange=[3700,5100],
 #                lines_file='data/spectral_lines.txt', priority=[1, 2], plot=True)
 # lamost_spectra(f'{directory}/spec-56687-GAC080N37V1_sp03-241.fits', 'data/70_targets.csv', lines_file='data/spectral_lines.txt', plot=True)
 # lamost_spectra(f'{directory}/spec-56948-HD052351N362354B_sp14-213.fits', 'data/70_targets.csv', lines_file='data/spectral_lines.txt', plot=True)
+# spectrum(wavelength, flux, title=name+' FIES medium resolution', xrange=[8470,8690], #Av=5.7289376,
+#           units=['Angstrom','W nm$^{-1}$ m$^{-2}$'], lines_file='data/spectral_lines.txt', #r'$\frac{ergs}{(cm^2 A)} x 10^{-16}$'
+#           priority=[1], plot=True)
 
-# for file in files:
-#     if file.endswith('.txt'):
-#         cafos_spectra(f'{directory}/{file}', 'data/TFM_table.csv', #xrange=[4300, 4500],
-#                       lines_file='data/spectral_lines.txt', priority=[1], plot=True, dered='calz')
+# fig, ax1 = plt.subplots(figsize=(12, 5))
+# directory = 'data/lamost_spectra'
+# lamost_spectra(f'{directory}/spec-55977-GAC_080N37_V1_sp03-241.fits', 'data/TFM_table.csv', dered='fitz',
+#                   lines_file='data/spectral_lines.txt', plot=False, ax=ax1)
+# ax1.set_title('LAMOST dereddened spectrum', fontsize=20, weight='bold')
+# ax1.set_ylim(top=17500)
+# plt.show()
+
+for file in files:
+    if file.endswith('.txt'):
+        cafos_spectra(f'{directory}/{file}', 'data/TFM_table.csv', xrange=[4000, 9400],
+                      lines_file='data/spectral_lines.txt', priority=[1], plot=True, dered='fitz')
+#         print(file)
         # lamost_spectra(f'{directory}/{file}', 'data/70_targets.csv', lines_file=None, plot=False, outdir='SPECTRA/LAMOST_spectra')
 
 #%%
@@ -483,3 +509,32 @@ for ra, dec, name in zip(coords['ra'], coords['dec'], coords['DR3_source_id']):
     
 df = pd.DataFrame({'name':id, 'Designation':design, 'Crowded':results})
 df.to_csv('data/crowded.csv')
+
+#%%
+
+from phot_utils import CMD
+import matplotlib.pyplot as plt
+from astropy.table import Table
+
+# table = Table.read('data/70_targets_extended.csv', format='ascii.csv')
+# for name in table['source_id']:
+#     CMD('data/70_targets_extended.csv', s=50, color='k', alpha=0.5)
+#     ax = plt.gca()
+#     mask = table['source_id']==name
+#     ax.scatter(table['bprp0'][mask], table['mg0'][mask], s=300, color='r', marker='*')
+#     ax.set_xlabel("BP - RP (mag)", fontsize = 25)
+#     ax.set_ylabel("$M_{G}$ (mag)", fontsize = 25)
+#     ax.tick_params(labelsize = 20)
+#     plt.savefig(f"cool_plots/CMD/{name}.png", bbox_inches = "tight", format='png')
+#     # plt.show()
+#     plt.close()
+    
+# t = Table.read("tables/starhorse2-result.vot", format="votable")
+CMD('data/starhorse2-result.vot', table_format="votable", s=10, density=True, 
+    cmap='magma', norm='log')
+ax=plt.gca()
+ax.set_xlabel("$(BP - RP)_{SH}$ [mag]", fontsize = 25)
+ax.set_ylabel("$M_{G,SH}$ [mag]", fontsize = 25)
+ax.tick_params(labelsize = 20)
+plt.show()
+plt.close()

@@ -21,7 +21,7 @@ from PIL import Image
 from io import BytesIO
 import pylab
 import os
-from scipy.interpolate import interpn
+from phot_utils import density_scatter
 
 
 # Nadia's code (from finder_chart.py)
@@ -254,7 +254,7 @@ def getgrayim(ra, dec, size=240, output_size=None, filter="g", format="jpg"):
     im = Image.open(BytesIO(r.content))
     return im
 
-def draw_image(ra, dec, name, size, directory='.', ext="pdf", plot=True, save=False):
+def draw_image(ra, dec, name, size, directory='.', ext="pdf", plot=True, save=False, ax=None):
     '''
     Plots the color cutout form Pan-STARRS.
 
@@ -287,23 +287,26 @@ def draw_image(ra, dec, name, size, directory='.', ext="pdf", plot=True, save=Fa
     # color image
         cim = getcolorim(ra,dec,size=size,filters="grizy")
         
-        plt.figure(figsize=(8, 6))
-        plt.grid(color='white', ls='solid')
-        plt.imshow(cim,origin="upper")
+        if ax is None:
+            fig, ax = plt.figure(figsize=(8, 6), constrained_layout=True)
+        
+        # plt.figure(figsize=(8, 6))
+        ax.grid(color='white', ls='solid')
+        ax.imshow(cim,origin="upper")
         
         #Mark target in green
-        ax = plt.gca()
+        # ax = plt.gca()
         trans = transforms.blended_transform_factory(ax.transAxes, ax.transAxes)
-        plt.plot(0.5, 0.5, '+', c='green', markersize=10, markeredgewidth=2, markeredgecolor='green',
+        ax.plot(0.5, 0.5, '+', c='green', markersize=10, markeredgewidth=2, markeredgecolor='green',
                  transform=trans)
         
-        plt.title(name, fontsize=15, weight='bold')
+        ax.set_title(name, fontsize=15, weight='bold')
         
         # Plot compass
-        plt.plot([0.83,0.93], [0.05,0.05], 'w', lw=2, transform=trans)
-        plt.plot([0.93,0.93], [0.05,0.15], 'w', lw=2, transform=trans)
-        plt.text(0.78, 0.08, "E", transform = trans, fontdict={'color':'w'})#, fontdict={'fontsize':14})
-        plt.text(0.88, 0.17, "N", transform = trans, fontdict={'color':'w'})#, fontdict={'fontsize':14})
+        ax.plot([0.83,0.93], [0.05,0.05], 'w', lw=2, transform=trans)
+        ax.plot([0.93,0.93], [0.05,0.15], 'w', lw=2, transform=trans)
+        ax.text(0.78, 0.08, "E", transform = trans, fontdict={'color':'w'})#, fontdict={'fontsize':14})
+        ax.text(0.88, 0.17, "N", transform = trans, fontdict={'color':'w'})#, fontdict={'fontsize':14})
         
         # Calculate RA and Dec ticks
         ra_ticks = [ra - 0.4*size*0.25/3600, ra - 0.15*size*0.25/3600, 
@@ -345,62 +348,7 @@ def draw_image(ra, dec, name, size, directory='.', ext="pdf", plot=True, save=Fa
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#
 
-
-#Function to plot sources as a scatter plot with density
-def density_scatter( x , y, sort = True, bins = 20, ax=None, **kwargs )   :
-    '''
-    Scatter plot colored by 2d histogram.
-
-    Parameters
-    ----------
-    x : list of floats
-        X axis values.
-    y : list of floats
-        Y axis values.
-    sort : bool, optional
-        If True, sort the points by density, so that the densest points are 
-        plotted last. The default is True.
-    bins : float, optional
-        Number of bins for the np.histogram2d. The default is 20.
-    ax : Axes object (matplotlib), optional
-        Axes where to draw the density plot. The default is None.
-    **kwargs :
-        Additional parameters for matplotlib.pyplot.scatter.
-
-    Returns
-    -------
-    out : Scatter plot (matplotlib)
-        The density scatter plot.
-
-    '''
-    if ax is None :
-        fig , ax = plt.subplots()
-    data , x_e, y_e = np.histogram2d( x, y, bins = bins, density = False )
-    z = interpn( ( 0.5*(x_e[1:] + x_e[:-1]) , 0.5*(y_e[1:]+y_e[:-1]) ) , data , np.vstack([x,y]).T , method = "splinef2d", bounds_error = False)
-
-    #To be sure to plot all data
-    z[np.where(np.isnan(z))] = 0.0
-
-    # Sort the points by density, so that the densest points are plotted last
-    if sort :
-        idx = z.argsort()
-        x, y, z = x[idx], y[idx], z[idx]
-
-    out = ax.scatter( x, y, c=z, **kwargs )
-    #plt.colorbar(label = "Sources per bin", location="left")
-        
-    #norm = Normalize(vmin = np.min(z), vmax = np.max(z))
-    #cbar = fig.colorbar(cm.ScalarMappable(norm = norm))
-    #cbar.ax.set_ylabel('Density')
-
-    return out
-
-
-#---------------------------------------------------------------------------------------------------------------#
-#---------------------------------------------------------------------------------------------------------------#
-
-
-def sky_plot(x, y, frame='galactic', projection='aitoff', density=False, ax=None, **kwargs):
+def sky_plot(x, y, frame='galactic', projection='aitoff', density=False, ax=None, xlimits=None, ylimits=None, **kwargs):
     '''
     Coordinate plot
 
@@ -465,7 +413,11 @@ def sky_plot(x, y, frame='galactic', projection='aitoff', density=False, ax=None
             ax.set_ylabel('dec')
         
         
-        # Grid and legend
+        # Grid and legend, limits
+        if xlimits is not None:
+            ax.set_xlim(xlimits[0], xlimits[1])
+        if ylimits is not None:
+            ax.set_ylim(ylimits[0], ylimits[1])
         ax.legend(loc='upper right', fontsize=12, bbox_to_anchor=(1,1.11))
         ax.grid(True)
     
@@ -490,5 +442,9 @@ def sky_plot(x, y, frame='galactic', projection='aitoff', density=False, ax=None
 
         ax.tick_params(axis='both', which='major', labelsize=16)
         
+        if xlimits is not None:
+            ax.set_xlim(xlimits[0], xlimits[1])
+        if ylimits is not None:
+            ax.set_ylim(ylimits[0], ylimits[1])
         ax.legend(loc='upper center', fontsize=12, shadow=True)
         ax.grid(True)

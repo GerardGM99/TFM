@@ -33,6 +33,7 @@ out['$PM_{RA}$'] = round(table['pmra'], 2).astype(str)+' $\pm$ '+round(table['pm
 out['$PM_{DEC}$'] = round(table['pmdec'], 2).astype(str)+' $\pm$ '+round(table['pmdec_error'], 2).astype(str)
 out['G'] = round(table['phot_g_mean_mag'], 2)
 out['$log_{10}(G_{err})$'] = round(table['log_g_err'], 2)
+out['$M_G$'] = round(table['mg0'], 2)
 out['BP-RP'] = round(table['bp_rp'], 2)
 out['$A_G$'] = round(table['ag50'], 2)
 out['$A_V$'] = round(table['av50'], 2)
@@ -43,7 +44,7 @@ out['W2'] = round(table['w2mpro'], 2)
 out['W3'] = round(table['w3mpro'], 2)
 out['W4'] = round(table['w4mpro'], 2)
 out['W1-W4'] = round(table['w1mpro']-table['w4mpro'], 2)
-out['$H\alpha$_W'] = round(table['halpha_w'], 3)
+out['$H\alpha_W$'] = round(table['halpha_w'], 3)
 out['$H\beta_W$'] = round(table['hbeta_w'], 3)
 out['Gaia Var. Class'] = table['best_class_name']
 out['Simbad Class'] = table['main_type']+' ('+table['other_types']+')'
@@ -72,7 +73,7 @@ for ide in out['Gaia source ID']:
 new['Light curves'] = lc_list
 
 spec_list = []
-directories = ['SPECTRA/CAFOS_spectra', 'SPECTRA/LAMOST_spectra/LAMOST-M_spectra', 'SPECTRA/LAMOST_spectra/LAMOST-L_spectra', 'SPECTRA/GRVS']
+directories = ['SPECTRA/CAFOS_spectra', 'SPECTRA/LAMOST_spectra/LAMOST-M_spectra', 'SPECTRA/LAMOST_spectra/LAMOST-L_spectra', 'SPECTRA/GRVS', 'data/FIES-M_spectra']
 for ide in out['Gaia source ID']:
     inst = check_file_in_directories(ide, directories)
     if inst == '':

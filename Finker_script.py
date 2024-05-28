@@ -15,7 +15,7 @@ from matplotlib.patches import Rectangle
 from lightcurve_utils import remove_outliers
 
 
-def Finker_mag(t_observed, y_observed, uncert, freq, show_plot=False, calc_error=False):
+def Finker_mag(t_observed, y_observed, uncert, freq, show_plot=False, calc_error=False, ax1=None, ax2=None):
     '''
     Given a light curve (time, magnitude and magnitude error) uses FINKER to
     find the best match for the frequency of the variable. The error on the 
@@ -95,7 +95,8 @@ def Finker_mag(t_observed, y_observed, uncert, freq, show_plot=False, calc_error
     objective_kernel = (objective_kernel-min(objective_kernel))/(max(objective_kernel)-min(objective_kernel))
 
     # Create a figure with two subplots
-    return_fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(16, 6))
+    if ax1 is None:
+        return_fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(16, 6))
 
     # First subplot: Frequency plot with inset
     ax1.scatter(frequencies_kernel, objective_kernel, s=1, c='royalblue')
@@ -176,7 +177,7 @@ def Finker_mag(t_observed, y_observed, uncert, freq, show_plot=False, calc_error
     
 
     
-    return best_freq, freq_err, return_fig
+    return best_freq, freq_err
 
 
 #---------------------------------------------------------------------------------------------------------------#
@@ -248,7 +249,7 @@ def use_finker(lc_files, freq_range=20, freq_step=50000, calc_error=False, outli
             sigma = remove_outliers(lc['mag'].loc[lc['filter']==band], method=outliers, n_std=5)
             
             # Variables to input into the FINKER script
-            t_observed = np.array(lc['mjd'].loc[lc['filter'] == band])[sigma]
+            t_observed = np.array(lc['bjd'].loc[lc['filter'] == band])[sigma]
             y_observed = np.array(lc['mag'].loc[lc['filter'] == band])[sigma]
             uncert = np.array(lc['magerr'].loc[lc['filter'] == band])[sigma]
             

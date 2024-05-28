@@ -23,7 +23,8 @@ from scipy.special import wofz
 from coord_utils import sky_xmatch
 from extinction import fitzpatrick99, remove, calzetti00
 
-def Gaia_XP(id_list, out_path=None, plot=False):
+       
+def Gaia_XP(id_list, out_path=None, plot=False, ax=None):
     '''
     Plota Gaia XP spectrum
 
@@ -35,45 +36,52 @@ def Gaia_XP(id_list, out_path=None, plot=False):
         If a path is given, the plot is saved there. The default is None.
     plot : bool, optional
         If True show the plot. The default is False.
+    ax : matplotlib.axes._subplots.AxesSubplot, optional
+        The Axes object to plot on. If None, a new figure is created. The default is None.
 
     Returns
     -------
     None.
 
     '''
-    #Balmer lines (nm)
+    # Balmer lines (nm)
     H_alfa = 656.3
     H_beta = 486.1
     H_gamma = 434.1
     
-    calibrated_spectra, sampling = calibrate(id_list)
+    # Assuming calibrate is a defined function
+    calibrated_spectra, sampling = calibrate(id_list, save_file=False)
 
     for i in range(len(calibrated_spectra)):
         source = calibrated_spectra.iloc[[i]]
         ide = source['source_id'].iloc[0]
-        plt.figure(figsize=(14,6))
-        plt.errorbar(sampling, np.array(source['flux'])[0], yerr=np.array(source['flux_error'])[0], 
-                     fmt=".-", color="k", label = "DR3")
-        plt.axvline(x = H_alfa, color = 'r')
-        plt.axvline(x = H_beta, color = 'c')
-        plt.axvline(x = H_gamma, color = 'darkorchid')
-        #labels, text...
-        plt.xlabel("Rest Wavelength [nm]", fontsize=18)
-        plt.ylabel("Flux [W nm$^{-1}$ m$^{-2}$]", fontsize=18)
-        plt.title(ide, fontsize=18)
-        ax = plt.gca()
-        trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
-        plt.text(660, 0.95, "H$\\alpha$", transform = trans, fontdict={'fontsize':14})
-        plt.text(490, 0.95, "H$\\beta$", transform = trans, fontdict={'fontsize':14})
-        plt.text(438, 0.95, "H$\\gamma$", transform = trans, fontdict={'fontsize':14})
         
-        if plot==True:
+        if ax is None:
+            fig, ax = plt.figure(figsize=(14, 6))
+        
+        ax.errorbar(sampling, np.array(source['flux'])[0], yerr=np.array(source['flux_error'])[0], 
+                     fmt=".-", color="k", label="DR3")
+        ax.axvline(x=H_alfa, color='r')
+        ax.axvline(x=H_beta, color='c')
+        ax.axvline(x=H_gamma, color='darkorchid')
+        # labels, text...
+        ax.set_xlabel("Rest Wavelength [nm]", fontsize=18)
+        ax.set_ylabel("Flux [W nm$^{-1}$ m$^{-2}$]", fontsize=18)
+        ax.set_title(ide, fontsize=18)
+        
+        trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
+        ax.text(660, 0.95, "H$\\alpha$", transform=trans, fontdict={'fontsize': 14})
+        ax.text(490, 0.95, "H$\\beta$", transform=trans, fontdict={'fontsize': 14})
+        ax.text(438, 0.95, "H$\\gamma$", transform=trans, fontdict={'fontsize': 14})
+        
+        if plot:
             plt.show()
         
         if out_path is not None:
-            plt.savefig(f'{out_path}/{ide}.png', bbox_inches = "tight", format = "png")
+            plt.savefig(f'{out_path}/{ide}.png', bbox_inches="tight", format="png")
         
-        plt.close()
+        if ax is None:
+            plt.close()
         
 
 def Gaia_rvs(id_list, rv_table=None, plot=True, out_dir=None):
@@ -151,56 +159,27 @@ def Gaia_rvs(id_list, rv_table=None, plot=True, out_dir=None):
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#
 
-def cafos_spectra(input_filename, asciicords, xrange=[3500, 9501], calibration='flux', dered=None, 
-                  lines_file=None, priority=[1], plot=True, outdir=None):
-    
-    if asciicords is not None:
-        fits_file = input_filename.split(".")[0]+'.fits'
-        hdu = fits.open(fits_file)
-        ra = hdu[0].header['RA']
-        dec = hdu[0].header['DEC']
-        hdu.close()
-        
-        # Xmatch with the asciicoords file
-        table = Table({'ra':[ra], 'dec':[dec]})
-        table_coord = Table.read(asciicords, format='ascii.csv')
-        column_names = ['ra', 'dec', 'RA', 'DEC', 'Gaia source ID']
-        xmatch_table = sky_xmatch(table, table_coord, 1800, column_names)
-        source_name = xmatch_table['Name'][0]
-    else:
-        source_name = os.path.basename(input_filename)
-    
-    fig, ax = plt.subplots(figsize=(12, 5))
-    if calibration == 'flux':
-        data = Table.read(input_filename, format='ascii')
-        
-        if dered is not None:
-            Av = table_coord['$A_V$'][table_coord['Gaia source ID']==int(source_name)][0]
-            #'deredden' flux using Fitzpatrick (1999)
-            if dered == 'fitz':
-                flux = remove(fitzpatrick99(np.array(data['wavelength']), Av, 3.1), np.array(data['flux']))
-            elif dered == 'calz':
-                flux = remove(calzetti00(np.array(data['wavelength']), Av, 3.1), np.array(data['flux']))
-            plt.title(f'{source_name}, CAFOS dereddened Low res spectrum, $A_v$ = {Av}', fontsize=16, weight='bold')
-        else:
-            flux = data['flux']
-            plt.title(source_name+', CAFOS Low res spectrum', fontsize=16, weight='bold')
-        
-        ax.plot(data['wavelength'], flux, color='k')
-    else:
-        data = fits.getdata(input_filename)
-        header = fits.getheader(input_filename)
-        
-        naxis2, naxis1 = data.shape
-        crpix1 = header['crpix1'] * u.pixel
-        cunit1 = 1 * u.Unit(header['cunit1'])
-        crval1 = header['crval1'] * u.Unit(cunit1)
-        cdelt1 = header['cdelt1'] * u.Unit(cunit1) / u.pixel
-        wavelength = crval1 + ((np.arange(naxis1) + 1)*u.pixel - crpix1) * cdelt1
+def show_lines(ax, lines_file, xrange, priority):
+    '''
+    Draws spectral lines in the given axes.
 
-        ax.plot(wavelength.to(u.Angstrom), data[0], color='k')
-        plt.title(source_name+', NO standard flux calibrated!', fontsize=16, weight='bold')
-    
+    Parameters
+    ----------
+    ax : matplotlib.axes
+        Axes where to draw the lines.
+    lines_file : string
+        Path to a text file with the rest wavelenght, the name and the priority
+        of the spectral lines.
+    xrange : tuple of floats
+        Tuple with the left and right limits of the wavelength axis.
+    priority : list of ints
+        The drawn lines are the ones with the given priorities.
+
+    Returns
+    -------
+    None.
+
+    '''
     cmap = plt.get_cmap('rainbow')
     if lines_file is not None:
         trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
@@ -231,14 +210,105 @@ def cafos_spectra(input_filename, asciicords, xrange=[3500, 9501], calibration='
                 else:
                     ymax=0.85
                 ax.axvline(wl, ymax=ymax, ls='--', alpha=0.5, color=color)
-                plt.text(wl, ymax+0.03, line, transform = trans, fontdict={'fontsize':12}, rotation = 90, ha='center')
+                ax.text(wl, ymax+0.03, line, transform = trans, fontdict={'fontsize':12}, rotation = 90, ha='center')
                 prev_line_wl2 = prev_line_wl
                 prev_line_wl = wl
                 # prev_ymax2 = prev_ymax
                 prev_ymax = ymax
+
+
+
+def cafos_spectra(input_filename, asciicords, xrange=[3500, 9501], calibration='flux', dered=None, 
+                  lines_file=None, priority=[1], plot=True, outdir=None, ax=None):
+    '''
+    Plots the CAFOS spectrum in the given file.
+
+    Parameters
+    ----------
+    input_filename : string
+        File with the wavelenghts and fluxes of the spectrum.
+    asciicords : string
+        Path to the file containing the name and coordinates of the source, and
+        the Av extinction coeficient.
+    xrange : tuple of floats, optional
+        Tuple with the left and right limits of the wavelength axis. The default 
+        is [3500, 9501].
+    calibration : string or None, optional
+        If flux, plots the flux calibrated spectrum, if None plots the observed
+        spectrum. The default is 'flux'.
+    dered : string or None, optional
+        Can be set to the function used to deredden the spectrum using the 
+        exctinction module. Can be 'fitz' or 'calz'. The default is None.
+    lines_file : string or None, optional
+        Path to a text file with the rest wavelenght, the name and the priority
+        of the spectral lines. The default is None.
+    priority : list of ints, optional
+        The drawn lines are the ones with the given priorities. The default is 
+        [1].
+    plot : Boolean, optional
+        If set to True, draws the plot. The default is True.
+    outdir : string or None, optional
+        Path where to save the spectrum as a jpg. The default is None.
+
+    Returns
+    -------
+    None.
+
+    '''
+    if asciicords is not None:
+        fits_file = input_filename.split(".")[0]+'.fits'
+        hdu = fits.open(fits_file)
+        ra = hdu[0].header['RA']
+        dec = hdu[0].header['DEC']
+        hdu.close()
+        
+        # Xmatch with the asciicoords file
+        table = Table({'ra':[ra], 'dec':[dec]})
+        table_coord = Table.read(asciicords, format='ascii.csv')
+        column_names = ['ra', 'dec', 'RA', 'DEC', 'Gaia source ID']
+        xmatch_table = sky_xmatch(table, table_coord, 1800, column_names)
+        source_name = xmatch_table['Name'][0]
+    else:
+        source_name = os.path.basename(input_filename)
     
-    ax.set_xlabel('Rest Wavelength (Angstrom)', fontsize=15)
-    ax.set_ylabel('Flux (number of counts)', fontsize=15)
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(12, 5))
+        
+    if calibration == 'flux':
+        data = Table.read(input_filename, format='ascii')
+        
+        if dered is not None:
+            Av = table_coord['$A_V$'][table_coord['Gaia source ID']==int(source_name)][0]
+            #'deredden' flux using Fitzpatrick (1999)
+            if dered == 'fitz':
+                flux = remove(fitzpatrick99(np.array(data['wavelength']), Av, 3.1), np.array(data['flux']))
+            elif dered == 'calz':
+                flux = remove(calzetti00(np.array(data['wavelength']), Av, 3.1), np.array(data['flux']))
+            ax.set_title(f'{source_name}, CAFOS dereddened Low res spectrum, $A_v$ = {Av}', fontsize=16, weight='bold')
+        else:
+            flux = data['flux']
+            ax.set_title(source_name+', CAFOS Low res spectrum', fontsize=16, weight='bold')
+        
+        ax.plot(data['wavelength'][flux>=0], flux[flux>=0], color='k')
+    else:
+        data = fits.getdata(input_filename)
+        header = fits.getheader(input_filename)
+        
+        naxis2, naxis1 = data.shape
+        crpix1 = header['crpix1'] * u.pixel
+        cunit1 = 1 * u.Unit(header['cunit1'])
+        crval1 = header['crval1'] * u.Unit(cunit1)
+        cdelt1 = header['cdelt1'] * u.Unit(cunit1) / u.pixel
+        wavelength = crval1 + ((np.arange(naxis1) + 1)*u.pixel - crpix1) * cdelt1
+
+        ax.plot(wavelength.to(u.Angstrom), data[0], color='k')
+        ax.set_title(source_name+', NO standard flux calibrated!', fontsize=16, weight='bold')
+    
+    if lines_file is not None:
+        show_lines(ax, lines_file, xrange, priority)
+    
+    ax.set_xlabel('Rest Wavelength [Angstrom]', fontsize=15)
+    ax.set_ylabel(r'Flux [$ergs \: cm^{-2} \: s^{-1} \: \AA^{-1}$]', fontsize=15)
     if (xrange[1] - xrange[0]) >= 2500:
         ax.set_xticks(np.arange(xrange[0], xrange[1], 500))
     ax.set_xlim(left=xrange[0], right=xrange[1])
@@ -264,10 +334,123 @@ def cafos_spectra(input_filename, asciicords, xrange=[3500, 9501], calibration='
         else:
             plt.savefig(f'{outdir}/{source_name}.png', bbox_inches = "tight", format = "png")
         
-        
-def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250], 
-                   lines_file=None, priority=[1] ,plot=True, outdir=None):
     
+    
+def spectrum(wavelength, flux, title=None, Av=None, units=['Angstrom','counts'],
+             lines_file=None, priority=[1], xrange=[3500,9501], plot=True, outdir=None, ax=None):
+    '''
+    Plots the spectrum given the wavelengths and the fluxes.
+
+    Parameters
+    ----------
+    wavelength : list of floats
+        Spectrum wavelengths.
+    flux : list of floats
+        Spectrum fluxes.
+    title : string, optional
+       Title for the plot. Used also to name the file if saved. The default is 
+       None.
+    Av : float, optional
+        Extinction coefficient for the dereddening. The default is None.
+    units : tuple of strings, optional
+        Units of the x and y axis. The default is ['Angstrom','counts'].
+    lines_file : string, optional
+        Path to a text file with the rest wavelenght, the name and the priority
+        of the spectral lines. The default is None.
+    priority : list of ints, optional
+        The drawn lines are the ones with the given priorities. The default is 
+        [1].
+    xrange : tuple of floats, optional
+         Tuple with the left and right limits of the wavelength axis. The 
+         default is [3500,9501].
+    plot : Boolean, optional
+        If set to True, draws the plot. The default is True.
+    outdir : string or None, optional
+        Path where to save the spectrum as a jpg. The default is None.
+
+    Returns
+    -------
+    None.
+
+    '''
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(12, 5))
+    
+    if Av is not None:
+        #'deredden' flux using Fitzpatrick (1999)
+        flux = remove(fitzpatrick99(np.array(wavelength), Av, 3.1), np.array(flux))
+        ax.set_title(f'{title}, dereddened spectrum, $A_v$ = {Av}', fontsize=16, weight='bold')
+        
+    ax.plot(wavelength, flux, color='k')
+    if Av is None:
+        ax.set_title(f'{title}', fontsize=16, weight='bold')
+        
+    if lines_file is not None:
+        show_lines(ax, lines_file, xrange, priority)
+        
+    ax.set_xlabel(f'Rest Wavelength [{units[0]}]', fontsize=15)
+    ax.set_ylabel(f'Flux [{units[1]}]', fontsize=15)
+    if (xrange[1] - xrange[0]) >= 2500:
+        ax.set_xticks(np.arange(xrange[0], xrange[1], 500))
+    ax.set_xlim(left=xrange[0], right=xrange[1])
+    if xrange!=[3500, 9501]:
+        xrange_mask = (xrange[0] < wavelength)*(wavelength < xrange[1])
+        flux_min = min(flux[xrange_mask])
+        flux_max = max(flux[xrange_mask])
+        mean = np.mean(flux[xrange_mask])
+        ax.set_ylim(bottom=flux_min-0.15*mean, top=flux_max+0.15*mean)
+    else:
+        flux_max = max(flux)
+        mean = np.mean(flux)
+        ax.set_ylim(top=flux_max+1.2*mean)
+    ax.tick_params(axis='both', which='major', labelsize=14)
+        
+    if plot:
+        plt.tight_layout()
+        plt.show()
+            
+    if outdir is not None:
+        output_path = f'{outdir}'
+        if not os.path.isdir(output_path):
+            os.makedirs(output_path)
+        plt.savefig(f'{output_path}/{title}.png', bbox_inches = "tight", format = "png")
+    plt.close()
+    
+
+def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250], dered=None, extra_med=False,
+                   lines_file=None, priority=[1] ,plot=True, outdir=None, ax=None, color='k'):
+    '''
+    Plots the LAMOST spectrum in the given file.
+
+    Parameters
+    ----------
+    input_filename : string
+        File with the wavelenghts and fluxes of the spectrum.
+    asciicords : string
+        Path to the file containing the name and coordinates of the source, and
+        the Av extinction coeficient.
+    xrange : tuple of floats, optional
+        Tuple with the left and right limits of the wavelength axis. The default 
+        is [3500, 9501].
+    dered : string or None, optional
+        Can be set to the function used to deredden the spectrum using the 
+        exctinction module. Can be 'fitz' or 'calz'. The default is None.
+    lines_file : string or None, optional
+        Path to a text file with the rest wavelenght, the name and the priority
+        of the spectral lines. The default is None.
+    priority : list of ints, optional
+        The drawn lines are the ones with the given priorities. The default is 
+        [1].
+    plot : Boolean, optional
+        If set to True, draws the plot. The default is True.
+    outdir : string or None, optional
+        Path where to save the spectrum as a jpg. The default is None.
+
+    Returns
+    -------
+    None.
+    '''
+
     hdu = fits.open(input_filename)
     ra = hdu[0].header['RA']
     dec = hdu[0].header['DEC']
@@ -281,7 +464,7 @@ def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250],
         # Xmatch with the asciicoords file
         table = Table({'ra':[ra], 'dec':[dec]})
         table_coord = Table.read(asciicords, format='ascii.csv')
-        column_names = ['ra', 'dec', 'ra', 'dec', 'DR3_source_id']
+        column_names = ['ra', 'dec', 'RA', 'DEC', 'Gaia source ID']
         xmatch_table = sky_xmatch(table, table_coord, 1800, column_names)
         source_name = xmatch_table['Name'][0]
     else:
@@ -290,70 +473,39 @@ def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250],
     if resolu ==  'Low res.':
         data = hdu[1].data
         hdr = hdu[1].header
-        
-        # if dered:
-        #     #'deredden' flux using Fitzpatrick (1999)
-        #     Av = table_coord['$A_V$'][table_coord['Gaia source ID']==int(source_name)][0]
-        #     flux = remove(fitzpatrick99(np.array(data['wavelength']), Av, 3.1), np.array(data['flux']))
-        #     plt.title(f'{source_name}, CAFOS dereddened Low res spectrum, $A_v$ = {Av}', fontsize=16, weight='bold')
-        # else:
-        #     flux = data['flux']
-        #     plt.title(source_name+', CAFOS Low res spectrum', fontsize=16, weight='bold')
-        
-        fig, ax = plt.subplots(figsize=(12, 5))
-          
         dirty_mask = (data['WAVELENGTH'][0] < 9000)*(data['FLUX'][0] > 375)
-        ax.plot(data['WAVELENGTH'][0][dirty_mask], data['FLUX'][0][dirty_mask], color='k')
-        plt.title(f'{source_name}, LAMOST {resolu} spectrum', fontsize=16, weight='bold')
+        
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(12, 5))
+        
+        if dered:
+            #'deredden' flux using Fitzpatrick (1999)
+            Av = table_coord['$A_V$'][table_coord['Gaia source ID']==int(source_name)][0]
+            flux = remove(fitzpatrick99(np.array(data['WAVELENGTH'][0][dirty_mask]).astype('double'), Av, 3.1), 
+                          np.array(data['FLUX'][0][dirty_mask]).astype('double'))
+            ax.set_title(f'{source_name}, LAMOST dereddened Low res spectrum, $A_v$ = {Av}', fontsize=16, weight='bold')
+        else:
+            flux = data['flux']
+            ax.set_title(source_name+', CAFOS Low res spectrum', fontsize=16, weight='bold')
+        
+        ax.plot(data['WAVELENGTH'][0][dirty_mask], flux, color=color)
+        ax.set_title(f'{source_name}, LAMOST {resolu} spectrum', fontsize=16, weight='bold')
             
-        cmap = plt.get_cmap('rainbow')
         if lines_file is not None:
-            trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
-            lines = Table.read(lines_file, format='ascii')
-            unique_priorities = np.unique(lines['prio'])
-            num_priorities = len(unique_priorities)
-            lines_sorted = lines[np.argsort(lines['wavelength'])]
-            prev_line_wl = None
-            prev_line_wl2 = None
-            prev_ymax = 0.85
-            # prev_ymax2 = 0.75
-            delta_perce2 = 1
-            for line, wl, prio in zip(lines_sorted['line'], lines_sorted['wavelength'], lines_sorted['prio']):
-                if (xrange[0] <= wl <= xrange[1]) & (prio in priority):
-                    color = cmap(float(np.where(unique_priorities == prio)[0]) / (num_priorities - 1))
-                    if prev_line_wl is not None:
-                        delta_wl = wl - prev_line_wl
-                        delta_perce = delta_wl / (xrange[1] - xrange[0])
-                        if prev_line_wl2 is not None:
-                            delta_wl2 = wl - prev_line_wl2
-                            delta_perce2 = delta_wl2 / (xrange[1] - xrange[0])
-                        if (delta_perce < 0.05) & (prev_ymax == 0.85) & (delta_perce2 > 0.02):
-                            ymax = 0.75
-                        elif (delta_perce < 0.05) & (prev_ymax == 0.85) & (delta_perce2 < 0.02):
-                            ymax = 0.65
-                        else:
-                            ymax = 0.85
-                    else:
-                        ymax=0.85
-                    ax.axvline(wl, ymax=ymax, ls='--', alpha=0.5, color=color)
-                    plt.text(wl, ymax+0.03, line, transform = trans, fontdict={'fontsize':12}, rotation = 90, ha='center')
-                    prev_line_wl2 = prev_line_wl
-                    prev_line_wl = wl
-                    # prev_ymax2 = prev_ymax
-                    prev_ymax = ymax
+            show_lines(ax, lines_file, xrange, priority)
             
-        ax.set_xlabel('Rest Wavelength (Angstrom)', fontsize=15)
-        ax.set_ylabel('Flux (number of counts)', fontsize=15)
+        ax.set_xlabel('Rest Wavelength [Angstrom]', fontsize=15)
+        ax.set_ylabel('Flux [number of counts]', fontsize=15)
         if (xrange[1] - xrange[0]) >= 2500:
             ax.set_xticks(np.arange(xrange[0], xrange[1], 500))
         ax.set_xlim(left=xrange[0], right=xrange[1])
         if xrange!=[3500, 9250]:
             xrange_mask = (xrange[0] < data['WAVELENGTH'][0])*(data['WAVELENGTH'][0] < xrange[1])
-            flux_min = min(data['FLUX'][0][xrange_mask])
-            flux_max = max(data['FLUX'][0][xrange_mask])
+            flux_min = min(flux[xrange_mask])
+            flux_max = max(flux[xrange_mask])
             ax.set_ylim(bottom=flux_min-50, top=flux_max+50)
         else:
-            flux_max = max(data['FLUX'][0])
+            flux_max = max(flux)
             ax.set_ylim(top=flux_max+200)
         ax.tick_params(axis='both', which='major', labelsize=14)
             
@@ -366,7 +518,7 @@ def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250],
             if not os.path.isdir(output_path):
                 os.makedirs(output_path)
             plt.savefig(f'{output_path}/{source_name}_{resolu}_{date}MJD.png', bbox_inches = "tight", format = "png")
-        plt.close()
+                
     
     elif resolu == 'Med. res.':
         single_exposures_B = []
@@ -379,14 +531,16 @@ def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250],
             band = hdr['EXTNAME']
             
             if band.startswith('COADD'):
-                fig, ax = plt.subplots(figsize=(12, 5))
+                if ax is None:
+                    fig, ax = plt.subplots(figsize=(12, 5))
                    
                 ax.plot(data['WAVELENGTH'][0], data['FLUX'][0], color='k')
-                plt.title(f'{source_name}-{band}, LAMOST {resolu} spectrum', fontsize=16, weight='bold')
+                ax.set_title(f'{source_name}-{band}, LAMOST {resolu} spectrum', fontsize=16, weight='bold')
                     
-                ax.set_xlabel('Rest Wavelength (Angstrom)', fontsize=15)
-                ax.set_ylabel('Flux (number of counts)', fontsize=15)
+                ax.set_xlabel('Rest Wavelength [Angstrom]', fontsize=15)
+                ax.set_ylabel('Flux [number of counts]', fontsize=15)
                 if band == 'COADD_B':
+                    continue
                     xrange=[4850, 5401]
                     ax.set_xticks(np.arange(4900, 5401, 50))
                     ax.set_xlim(left=xrange[0], right=xrange[1])
@@ -397,12 +551,7 @@ def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250],
                 ax.tick_params(axis='both', which='major', labelsize=14)
                 
                 if lines_file is not None:
-                    trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
-                    lines = Table.read(lines_file, format='ascii')
-                    for line, wl in zip(lines['line'], lines['wavelenght']):
-                        if xrange[0] <= wl <= xrange[1]:
-                            ax.axvline(wl, ls='--', alpha=0.5)
-                            plt.text(wl+11, 0.95, line, transform = trans, fontdict={'fontsize':12})
+                    show_lines(ax, lines_file, xrange, priority)
                     
                 if plot:
                     plt.tight_layout()
@@ -413,7 +562,6 @@ def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250],
                     if not os.path.isdir(output_path):
                         os.makedirs(output_path)
                     plt.savefig(f'{output_path}/{source_name}_{resolu}_{band}_{date}MJD.png', bbox_inches = "tight", format = "png")
-                plt.close()
             
             elif band.startswith('B'):
                 single_exposures_B.append(data)
@@ -423,56 +571,58 @@ def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250],
                 se_names_R.append(band)
         
         # Single exposures band B
-        fig, ax = plt.subplots(figsize=(12, 5))
-        
-        for spec, spec_name in zip(single_exposures_B, se_names_B):
-            ax.plot(spec['WAVELENGTH'][0], spec['FLUX'][0], label=spec_name)
-        
-        plt.title(f'{source_name}, Single exposures LAMOST {resolu} spectra', fontsize=16, weight='bold')
-        ax.set_xlabel('Rest Wavelength (Angstrom)', fontsize=15)
-        ax.set_ylabel('Flux (number of counts)', fontsize=15)
-        ax.set_xticks(np.arange(4900, 5401, 50))
-        ax.set_xlim(left=4850, right=5401)
-        ax.tick_params(axis='both', which='major', labelsize=14)
-        plt.legend(loc='upper left', fontsize=15)
-        
-        if plot:
-            plt.tight_layout()
-            plt.show()
-                
-        if outdir is not None:
-            output_path = f'{outdir}/LAMOST-M_spectra'
-            if not os.path.isdir(output_path):
-                os.makedirs(output_path)
-            plt.savefig(f'{output_path}/{source_name}_B_{date}MJD.png', bbox_inches = "tight", format = "png")
-        plt.close()
-        
-        # Single exposures band R
-        fig, ax = plt.subplots(figsize=(12, 5))
-        
-        for spec, spec_name in zip(single_exposures_R, se_names_R):
-            ax.plot(spec['WAVELENGTH'][0], spec['FLUX'][0], label=spec_name)
-        
-        plt.title(f'{source_name}, Single exposures LAMOST {resolu} spectra', fontsize=16, weight='bold')
-        ax.set_xlabel('Rest Wavelength (Angstrom)', fontsize=15)
-        ax.set_ylabel('Flux (number of counts)', fontsize=15)
-        ax.set_xticks(np.arange(6200, 6900, 50))
-        ax.set_xlim(left=6200, right=6901)
-        ax.tick_params(axis='both', which='major', labelsize=14)
-        plt.legend(loc='upper left', fontsize=15)
-        
-        if plot:
-            plt.tight_layout()
-            plt.show()
-                
-        if outdir is not None:
-            output_path = f'{outdir}/LAMOST-M_spectra'
-            if not os.path.isdir(output_path):
-                os.makedirs(output_path)
-            plt.savefig(f'{output_path}/{source_name}_R_{date}MJD.png', bbox_inches = "tight", format = "png")
-        plt.close()
+        if extra_med:
+            fig2, ax2 = plt.subplots(figsize=(12, 5))
+            
+            for spec, spec_name in zip(single_exposures_B, se_names_B):
+                ax2.plot(spec['WAVELENGTH'][0], spec['FLUX'][0], label=spec_name)
+            
+            plt.title(f'{source_name}, Single exposures LAMOST {resolu} spectra', fontsize=16, weight='bold')
+            ax2.set_xlabel('Rest Wavelength [Angstrom]', fontsize=15)
+            ax2.set_ylabel('Flux [number of counts]', fontsize=15)
+            ax2.set_xticks(np.arange(4900, 5401, 50))
+            ax2.set_xlim(left=4850, right=5401)
+            ax2.tick_params(axis='both', which='major', labelsize=14)
+            plt.legend(loc='upper left', fontsize=15)
+            
+            if plot:
+                plt.tight_layout()
+                plt.show()
+                    
+            if outdir is not None:
+                output_path = f'{outdir}/LAMOST-M_spectra'
+                if not os.path.isdir(output_path):
+                    os.makedirs(output_path)
+                plt.savefig(f'{output_path}/{source_name}_B_{date}MJD.png', bbox_inches = "tight", format = "png")
+            
+            # Single exposures band R
+            fig3, ax3 = plt.subplots(figsize=(12, 5))
+            
+            for spec, spec_name in zip(single_exposures_R, se_names_R):
+                ax3.plot(spec['WAVELENGTH'][0], spec['FLUX'][0], label=spec_name)
+            
+            plt.title(f'{source_name}, Single exposures LAMOST {resolu} spectra', fontsize=16, weight='bold')
+            ax3.set_xlabel('Rest Wavelength [Angstrom]', fontsize=15)
+            ax3.set_ylabel('Flux [number of counts]', fontsize=15)
+            ax3.set_xticks(np.arange(6200, 6900, 50))
+            ax3.set_xlim(left=6200, right=6901)
+            ax3.tick_params(axis='both', which='major', labelsize=14)
+            plt.legend(loc='upper left', fontsize=15)
+            
+            if plot:
+                plt.tight_layout()
+                plt.show()
+                    
+            if outdir is not None:
+                output_path = f'{outdir}/LAMOST-M_spectra'
+                if not os.path.isdir(output_path):
+                    os.makedirs(output_path)
+                plt.savefig(f'{output_path}/{source_name}_R_{date}MJD.png', bbox_inches = "tight", format = "png")
         
     hdu.close()
+    
+    if resolu == 'Low res.':
+        return data['WAVELENGTH'][0][dirty_mask], flux
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#
 
