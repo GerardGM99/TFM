@@ -12,33 +12,6 @@ from math import pi
 from scipy.interpolate import interpn
 from coord_utils import density_scatter
 
-# #Function to plot sources as a scatter plot with density
-# def density_scatter( x , y, sort = True, bins = 20, **kwargs )   :
-#     """
-#     Scatter plot colored by 2d histogram
-#     """
-#     #if ax is None :
-#         #fig , ax = plt.subplots()
-#     data , x_e, y_e = np.histogram2d( x, y, bins = bins, density = False )
-#     z = interpn( ( 0.5*(x_e[1:] + x_e[:-1]) , 0.5*(y_e[1:]+y_e[:-1]) ) , data , np.vstack([x,y]).T , method = "splinef2d", bounds_error = False)
-
-#     #To be sure to plot all data
-#     z[np.where(np.isnan(z))] = 0.0
-
-#     # Sort the points by density, so that the densest points are plotted last
-#     if sort :
-#         idx = z.argsort()
-#         x, y, z = x[idx], y[idx], z[idx]
-
-#     out = plt.scatter( x, y, c=z, **kwargs )
-#     #plt.colorbar(label = "Sources per bin", location="left")
-        
-#     #norm = Normalize(vmin = np.min(z), vmax = np.max(z))
-#     #cbar = fig.colorbar(cm.ScalarMappable(norm = norm))
-#     #cbar.ax.set_ylabel('Density')
-
-#     return out
-
 file = Table.read('data/rvs_bulk.csv', format='ascii.csv')
 my_sources = Table.read('data/Radial_velocities.vot')
 
@@ -70,46 +43,50 @@ for magi in mag_i:
     e2_low.append(np.percentile(rv_err[mask],2.28))
     e2_upp.append(np.percentile(rv_err[mask],97.72))
     
-sources_list_silver=[1870955515858422656,5617186348318629248,4519475166529738112,5593826360487373696,
-                     4076568861833452160,6123873398383875456]
-sources_list_gold=[2060841448854265216,2166378312964576256]
+sources_list_silver=[6123873398383875456,5323384162646755712,2006088484204609408,2060841448854265216,
+                     2061252975440642816,2166378312964576256,5311969857556479616,5524022735225482624,
+                     6228685649971375616]
+sources_list_gold=[5880159842877908352,1870955515858422656,5965503866703572480,2175699216614191360,
+                   460686648965862528,4076568861833452160,2206767944881247744]
    
-plt.figure(figsize=(12,8))
-plt.plot(mag_o, rv_err_o, color='darkviolet', label='all sample, med')
+plt.figure(figsize=(8,8/1.5))
+plt.plot(mag_o, rv_err_o, color='darkviolet', label='Median')
 # density_scatter(mag, rv_err, bins = 500, s = 2, alpha=0.1, cmap = "viridis")
 plt.fill_between(mag_o, e2_low, e2_upp, alpha=0.2, color='r', label=r'2$\sigma$') #r'$2.28\%$-$97.72\%$'
 plt.fill_between(mag_o, e1_low, e1_upp, alpha=0.2, color='b', label=r'1$\sigma$') #r'$15.87\%$-$84.13\%$'
 # plt.scatter(my_sources['grvs_mag'], my_sources['radial_velocity_error'], label='My sources',
 #             c='k', s=200, marker='*', edgecolor='gold')
-plt.scatter(my_sources['grvs_mag'], my_sources['radial_velocity_error'], label='My sources',
-            c=my_sources['rv_nb_transits'], s=200, marker='*', cmap='inferno', vmax=35, zorder=3)
-cb = plt.colorbar(pad = 0.045, orientation='vertical')
-cb.set_label('rv_nb_transits [#]', fontsize = 16, labelpad = 6, rotation=270, verticalalignment='bottom')
+plt.scatter(my_sources['grvs_mag'], my_sources['radial_velocity_error'], label='Our candidates',
+            c=my_sources['rv_nb_transits'], s=130, marker='*', cmap='inferno', vmax=35, zorder=3)
+cb = plt.colorbar(pad = 0.053, orientation='vertical')
+cb.set_label('rv_nb_transits [#]', fontsize = 13, labelpad = 6, rotation=270, verticalalignment='bottom')
 
 silver_x=[]
 silver_y=[]
 for ide in sources_list_silver:
     mask = my_sources['SOURCE_ID']==ide
-    silver_x.append(my_sources['grvs_mag'][mask])
-    silver_y.append( my_sources['radial_velocity_error'][mask])
-plt.scatter(silver_x, silver_y, label='silver var', s=300, facecolors='none', edgecolors='silver', linewidth=4)    
+    if len(mask[mask==True])==1:
+        silver_x.append(my_sources['grvs_mag'][mask])
+        silver_y.append( my_sources['radial_velocity_error'][mask])
+plt.scatter(silver_x, silver_y, label='EB', s=220, facecolors='none', edgecolors='green', linewidth=4)    
 
 gold_x=[]
 gold_y=[]
 for ide in sources_list_gold:
     mask = my_sources['SOURCE_ID']==ide
-    gold_x.append(my_sources['grvs_mag'][mask])
-    gold_y.append( my_sources['radial_velocity_error'][mask])
-plt.scatter(gold_x, gold_y, label='gold var', s=300, facecolors='none', edgecolors='gold', linewidth=4) 
+    if len(mask[mask==True])==1:
+        gold_x.append(my_sources['grvs_mag'][mask])
+        gold_y.append( my_sources['radial_velocity_error'][mask])
+plt.scatter(gold_x, gold_y, label='Sin', s=220, facecolors='none', edgecolors='greenyellow', linewidth=4) 
 
 cb.ax.yaxis.set_ticks_position('left')
 cb.ax.tick_params('both', labelsize=14)
-plt.xlabel('grvs_mag [mag]', fontsize=16)
-plt.ylabel('Precision [$km \\: s^{-1}$]', fontsize=16)
-plt.tick_params('both', labelsize=14)
+plt.xlabel('grvs_mag [mag]', fontsize=15)
+plt.ylabel('radial_velocity_errror [$km \\: s^{-1}$]', fontsize=15)
+plt.tick_params('both', labelsize=15)
 #plt.ylim(top=20)
 plt.grid(zorder=0)
-plt.legend(loc='upper left', fontsize=18)
+plt.legend(loc='upper left', fontsize=12)
 plt.show()
 plt.close()
 

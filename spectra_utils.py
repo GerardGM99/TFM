@@ -22,6 +22,8 @@ from astroquery.gaia import Gaia
 from scipy.special import wofz
 from coord_utils import sky_xmatch
 from extinction import fitzpatrick99, remove, calzetti00
+from astropy.time import Time
+from astropy.coordinates import SkyCoord, EarthLocation
 
        
 def Gaia_XP(id_list, out_path=None, plot=False, ax=None):
@@ -307,7 +309,7 @@ def cafos_spectra(input_filename, asciicords, xrange=[3500, 9501], calibration='
     if lines_file is not None:
         show_lines(ax, lines_file, xrange, priority)
     
-    ax.set_xlabel('Rest Wavelength [Angstrom]', fontsize=15)
+    ax.set_xlabel('Rest Wavelength [$\AA$]', fontsize=15)
     ax.set_ylabel(r'Flux [$ergs \: cm^{-2} \: s^{-1} \: \AA^{-1}$]', fontsize=15)
     if (xrange[1] - xrange[0]) >= 2500:
         ax.set_xticks(np.arange(xrange[0], xrange[1], 500))
@@ -337,7 +339,7 @@ def cafos_spectra(input_filename, asciicords, xrange=[3500, 9501], calibration='
     
     
 def spectrum(wavelength, flux, title=None, Av=None, units=['Angstrom','counts'],
-             lines_file=None, priority=[1], xrange=[3500,9501], plot=True, outdir=None, ax=None):
+             lines_file=None, priority=[1], xrange=[3500,9501], plot=True, outdir=None, ax=None, **kwargs):
     '''
     Plots the spectrum given the wavelengths and the fluxes.
 
@@ -381,15 +383,15 @@ def spectrum(wavelength, flux, title=None, Av=None, units=['Angstrom','counts'],
         flux = remove(fitzpatrick99(np.array(wavelength), Av, 3.1), np.array(flux))
         ax.set_title(f'{title}, dereddened spectrum, $A_v$ = {Av}', fontsize=16, weight='bold')
         
-    ax.plot(wavelength, flux, color='k')
+    ax.plot(wavelength, flux, **kwargs)
     if Av is None:
         ax.set_title(f'{title}', fontsize=16, weight='bold')
         
     if lines_file is not None:
         show_lines(ax, lines_file, xrange, priority)
         
-    ax.set_xlabel(f'Rest Wavelength [{units[0]}]', fontsize=15)
-    ax.set_ylabel(f'Flux [{units[1]}]', fontsize=15)
+    ax.set_xlabel(fr'Rest Wavelength [{units[0]}]', fontsize=15)
+    ax.set_ylabel(fr'Flux [{units[1]}]', fontsize=15)
     if (xrange[1] - xrange[0]) >= 2500:
         ax.set_xticks(np.arange(xrange[0], xrange[1], 500))
     ax.set_xlim(left=xrange[0], right=xrange[1])
@@ -414,7 +416,7 @@ def spectrum(wavelength, flux, title=None, Av=None, units=['Angstrom','counts'],
         if not os.path.isdir(output_path):
             os.makedirs(output_path)
         plt.savefig(f'{output_path}/{title}.png', bbox_inches = "tight", format = "png")
-    plt.close()
+    # plt.close()
     
 
 def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250], dered=None, extra_med=False,
@@ -494,7 +496,7 @@ def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250], dered=None, 
         if lines_file is not None:
             show_lines(ax, lines_file, xrange, priority)
             
-        ax.set_xlabel('Rest Wavelength [Angstrom]', fontsize=15)
+        ax.set_xlabel(r'Rest Wavelength [$\AA$]', fontsize=15)
         ax.set_ylabel('Flux [number of counts]', fontsize=15)
         if (xrange[1] - xrange[0]) >= 2500:
             ax.set_xticks(np.arange(xrange[0], xrange[1], 500))
@@ -578,7 +580,7 @@ def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250], dered=None, 
                 ax2.plot(spec['WAVELENGTH'][0], spec['FLUX'][0], label=spec_name)
             
             plt.title(f'{source_name}, Single exposures LAMOST {resolu} spectra', fontsize=16, weight='bold')
-            ax2.set_xlabel('Rest Wavelength [Angstrom]', fontsize=15)
+            ax2.set_xlabel('Rest Wavelength [$\AA$]', fontsize=15)
             ax2.set_ylabel('Flux [number of counts]', fontsize=15)
             ax2.set_xticks(np.arange(4900, 5401, 50))
             ax2.set_xlim(left=4850, right=5401)
@@ -602,7 +604,7 @@ def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250], dered=None, 
                 ax3.plot(spec['WAVELENGTH'][0], spec['FLUX'][0], label=spec_name)
             
             plt.title(f'{source_name}, Single exposures LAMOST {resolu} spectra', fontsize=16, weight='bold')
-            ax3.set_xlabel('Rest Wavelength [Angstrom]', fontsize=15)
+            ax3.set_xlabel('Rest Wavelength [$\AA$]', fontsize=15)
             ax3.set_ylabel('Flux [number of counts]', fontsize=15)
             ax3.set_xticks(np.arange(6200, 6900, 50))
             ax3.set_xlim(left=6200, right=6901)
@@ -623,6 +625,40 @@ def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250], dered=None, 
     
     if resolu == 'Low res.':
         return data['WAVELENGTH'][0][dirty_mask], flux
+    
+#---------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------#
+
+def spec_velocity(rest_wl, wavelengths, fluxs, site=None, RA=None, DEC=None, obs_time=None, 
+                  ax=None, legend=True, **kwargs):
+    
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(7, 5))
+    
+    if site is not None:
+        location = EarthLocation.of_site(site)
+        sc = SkyCoord(ra=RA, dec=DEC, unit='deg')
+        heliocorr = sc.radial_velocity_correction('heliocentric', obstime=Time(obs_time), 
+                                                  location=location)  
+        heliocorr = heliocorr.to(u.km/u.s).value
+        print(heliocorr)
+    else:
+        heliocorr = 0
+    
+    c = 299792.458 # km/s
+    mean_flux = np.mean(fluxs)
+    velocity = heliocorr + c*(rest_wl-wavelengths)/wavelengths
+    
+    ax.plot(velocity, fluxs/mean_flux, **kwargs)
+    ax.set_xlabel('Velocity [km/s]', fontsize=15)
+    ax.set_ylabel('Normilized Flux', fontsize=15)
+    # ax.set_xticks(np.arange(6200, 6900, 50))
+    # ax.set_xlim(left=6200, right=6901)
+    ax.tick_params(axis='both', labelsize=14)
+    
+    if legend:
+        ax.legend(fontsize=12)
+
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#
 

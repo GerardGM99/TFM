@@ -403,12 +403,12 @@ def sky_plot(x, y, frame='galactic', projection='aitoff', density=False, ax=None
                                 '22h', '20h', '18h', '16h', '14h'])
             
             # Plot the labels and the title
-            ax.set_title("Skymap in galactic coordinates" , x = 0.5, y = 1.1, fontsize=19)
+            ax.set_title("Skymap in galactic coordinates" , x = 0.5, y = 1.1, fontsize=19, weight='bold')
             ax.set_xlabel('l')
             ax.set_ylabel('b')  
         elif frame == 'icrs':
             # Plot the labels and the title
-            ax.set_title("Skymap in ICRS" , x = 0.5, y = 1.1, fontsize=19)
+            ax.set_title("Skymap in ICRS" , x = 0.5, y = 1.1, fontsize=19, weight='bold')
             ax.set_xlabel('ra')
             ax.set_ylabel('dec')
         
@@ -418,7 +418,7 @@ def sky_plot(x, y, frame='galactic', projection='aitoff', density=False, ax=None
             ax.set_xlim(xlimits[0], xlimits[1])
         if ylimits is not None:
             ax.set_ylim(ylimits[0], ylimits[1])
-        ax.legend(loc='upper right', fontsize=12, bbox_to_anchor=(1,1.11))
+        ax.legend(loc='upper right', fontsize=16, bbox_to_anchor=(1,1.11))
         ax.grid(True)
     
     else:
@@ -431,14 +431,14 @@ def sky_plot(x, y, frame='galactic', projection='aitoff', density=False, ax=None
             
         if frame == 'galactic':
             #Labels and title
-            ax.set_title("Skymap in galactic coordinates" , fontsize=19)
-            ax.set_xlabel('l (deg)', fontsize = 19)
-            ax.set_ylabel('b (deg)', fontsize = 19)  
+            ax.set_title("Skymap in galactic coordinates" , fontsize=19, weight='bold')
+            ax.set_xlabel('l [deg]', fontsize = 19)
+            ax.set_ylabel('b [deg]', fontsize = 19)  
         elif frame == 'icrs':
             #Labels and title
-            ax.set_title("Skymap in ICRS", fontsize=19)
-            ax.set_xlabel("ra (deg)", fontsize = 19)
-            ax.set_ylabel("dec (deg)", fontsize = 19)
+            ax.set_title("Skymap in ICRS", fontsize=19, weight='bold')
+            ax.set_xlabel("ra [deg]", fontsize = 19)
+            ax.set_ylabel("dec [deg]", fontsize = 19)
 
         ax.tick_params(axis='both', which='major', labelsize=16)
         
@@ -446,5 +446,5 @@ def sky_plot(x, y, frame='galactic', projection='aitoff', density=False, ax=None
             ax.set_xlim(xlimits[0], xlimits[1])
         if ylimits is not None:
             ax.set_ylim(ylimits[0], ylimits[1])
-        ax.legend(loc='upper center', fontsize=12, shadow=True)
-        ax.grid(True)
+        ax.legend(loc='upper center', fontsize=16, shadow=True)
+        ax.grid(False)

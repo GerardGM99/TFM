@@ -16,7 +16,7 @@ from lightcurve_utils import plot_lightcurves, plot_ind_lightcurves
 
 # plot_lightcurves('IRSA_ZTF_lightcurves_std', outliers='eb')
 
-plot_ind_lightcurves('TESS_lightcurves_std/187219239343050880_S19_QLP.csv', ref_mjd=58190.45, y_ax='flux',plot=True, savefig=False)
+plot_ind_lightcurves('TESS_lightcurves_std/2060841448854265216_S14_QLP.csv', ref_mjd=58190.45, y_ax='flux',plot=True, savefig=False)
 
 #%%
 from Finker_script import use_finker
@@ -182,6 +182,9 @@ _,_,_,_ = su.model_spectral_lines([6553, 6573], {'Ha':6563}, [0.8], 5000, 7000, 
 
 import coord_utils as cu
 from astropy.table import Table
+import matplotlib.pyplot as plt
+
+plt.rcParams['font.family']= 'serif'
 
 random = Table.read('data/random_sources-result.vot', format="votable")
 random = random.to_pandas()
@@ -388,23 +391,23 @@ from spectra_utils import spectrum
 import pandas as pd
 import os
 
-name = '4299904519833646080'
-directory = 'data/cafos_spectra'
+name = '4076568861833452160'
+directory = 'data/FIES-M_spectra'
 files = os.listdir(directory)
 # spec = pd.read_csv(f'{directory}/{name}.txt', sep=' ')
 # wavelength = spec['wavelength']
 # flux = spec['flux']
 
 xrange=[4810, 4910]
-# cafos_spectra(f'{directory}/spectra1D_dswfz_uniB_0208.txt', 'data/TFM_table.csv', xrange=[4800, 4880],
-#               lines_file='data/spectral_lines.txt', priority=[1], plot=True, dered=None)
+cafos_spectra('data/cafos_spectra/spectra1D_dswfz_uniB_0200.txt', 'data/TFM_table.csv', xrange=[8143,8766],
+              lines_file='data/spectral_lines.txt', priority=[1], plot=True, dered=None)
 # lamost_spectra(f'{directory}/spec-55977-GAC_080N37_V1_sp03-241.fits', 'data/70_targets.csv', xrange=[3700,5100],
 #                lines_file='data/spectral_lines.txt', priority=[1, 2], plot=True)
 # lamost_spectra(f'{directory}/spec-56687-GAC080N37V1_sp03-241.fits', 'data/70_targets.csv', lines_file='data/spectral_lines.txt', plot=True)
 # lamost_spectra(f'{directory}/spec-56948-HD052351N362354B_sp14-213.fits', 'data/70_targets.csv', lines_file='data/spectral_lines.txt', plot=True)
-# spectrum(wavelength, flux, title=name+' FIES medium resolution', xrange=[8470,8690], #Av=5.7289376,
+# spectrum(wavelength, flux, title=name+' FIES medium resolution', xrange=[6600,6615], #Av=5.7289376,
 #           units=['Angstrom','W nm$^{-1}$ m$^{-2}$'], lines_file='data/spectral_lines.txt', #r'$\frac{ergs}{(cm^2 A)} x 10^{-16}$'
-#           priority=[1], plot=True)
+#           priority=[1,2,3,26], plot=True, color='k')
 
 # fig, ax1 = plt.subplots(figsize=(12, 5))
 # directory = 'data/lamost_spectra'
@@ -414,10 +417,10 @@ xrange=[4810, 4910]
 # ax1.set_ylim(top=17500)
 # plt.show()
 
-for file in files:
-    if file.endswith('.txt'):
-        cafos_spectra(f'{directory}/{file}', 'data/TFM_table.csv', xrange=[4000, 9400],
-                      lines_file='data/spectral_lines.txt', priority=[1], plot=True, dered='fitz')
+# for file in files:
+#     if file.endswith('.txt'):
+#         cafos_spectra(f'{directory}/{file}', 'data/TFM_table.csv', xrange=[4000, 9400],
+#                       lines_file='data/spectral_lines.txt', priority=[1], plot=True, dered='fitz')
 #         print(file)
         # lamost_spectra(f'{directory}/{file}', 'data/70_targets.csv', lines_file=None, plot=False, outdir='SPECTRA/LAMOST_spectra')
 
@@ -538,3 +541,26 @@ ax.set_ylabel("$M_{G,SH}$ [mag]", fontsize = 25)
 ax.tick_params(labelsize = 20)
 plt.show()
 plt.close()
+
+#%%
+
+import pandas as pd
+import spectra_utils as su
+import matplotlib.pyplot as plt
+
+spectrum = pd.read_csv('data/FIES-M_spectra/2200433413577635840.txt', sep=' ')
+
+mask = (spectrum['wavelength']>6540)*(spectrum['wavelength']<6580)
+mask2 = (spectrum['wavelength']>4840)*(spectrum['wavelength']<4880)
+
+fig, ax = plt.subplots(figsize=(7, 5))
+
+su.spec_velocity(6562.8, spectrum['wavelength'][mask], spectrum['flux'][mask], 
+                 label=r'H$\alpha$', color='r', ax=ax,
+                 site='lapalma', RA=336.767, DEC=59.093, obs_time='2024-5-25')
+su.spec_velocity(4861, spectrum['wavelength'][mask2], spectrum['flux'][mask2], 
+                 label=r'H$\beta$', color='b', ax=ax,
+                 site='lapalma', RA=336.767, DEC=59.093, obs_time='2024-5-25')
+ax.set_xlim(left=-500, right=500)
+ax.set_ylim(top=0.4)
+plt.show()

@@ -73,7 +73,9 @@ for ide in out['Gaia source ID']:
 new['Light curves'] = lc_list
 
 spec_list = []
-directories = ['SPECTRA/CAFOS_spectra', 'SPECTRA/LAMOST_spectra/LAMOST-M_spectra', 'SPECTRA/LAMOST_spectra/LAMOST-L_spectra', 'SPECTRA/GRVS', 'data/FIES-M_spectra']
+directories = ['SPECTRA/CAFOS_spectra', 'SPECTRA/LAMOST_spectra/LAMOST-M_spectra', 
+               'SPECTRA/LAMOST_spectra/LAMOST-L_spectra', 'SPECTRA/GRVS', 'data/FIES-M_spectra',
+               'data/HERMES_spectra']
 for ide in out['Gaia source ID']:
     inst = check_file_in_directories(ide, directories)
     if inst == '':

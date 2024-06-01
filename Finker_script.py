@@ -13,7 +13,7 @@ from mpl_toolkits.axes_grid1.inset_locator import mark_inset, inset_axes
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 from lightcurve_utils import remove_outliers
-
+from matplotlib.ticker import FormatStrFormatter
 
 def Finker_mag(t_observed, y_observed, uncert, freq, show_plot=False, calc_error=False, ax1=None, ax2=None):
     '''
@@ -114,10 +114,10 @@ def Finker_mag(t_observed, y_observed, uncert, freq, show_plot=False, calc_error
         legend_handle_period = Rectangle((0,0), 1, 1, fill=False, edgecolor='none', visible=False, label=f'Period: {24/best_freq:.6f}' + r'$ \, hr$')
     else:
         legend_handle_period = Rectangle((0,0), 1, 1, fill=False, edgecolor='none', visible=False, label=f'Period: {1/best_freq:.6f}' + r'$ \, d$')
-    ax1.legend(handles=[legend_handle_best_freq,legend_handle_period], loc='lower right', fontsize=14, framealpha=1.0)
+    ax1.legend(handles=[legend_handle_best_freq,legend_handle_period], loc='lower right', fontsize=12, framealpha=1.0)
 
     # Inset for the first subplot
-    axins = inset_axes(ax1, width="90%", height="90%", bbox_to_anchor=(0.45,0.31, 0.45, 0.45), bbox_transform=ax1.transAxes)
+    axins = inset_axes(ax1, width="80%", height="80%", bbox_to_anchor=(0.55,0.24, 0.45, 0.45), bbox_transform=ax1.transAxes)
     axins.scatter(frequencies_kernel, objective_kernel, s=5, c='royalblue')
     axins.errorbar(best_freq, objective_kernel.min(), xerr=freq_err,fmt='o', color='black',
                     ecolor='black', elinewidth=3, capsize=4, markersize=5,markeredgewidth=3)
@@ -128,8 +128,9 @@ def Finker_mag(t_observed, y_observed, uncert, freq, show_plot=False, calc_error
     else:
         axins.set_xlim(best_freq-0.00003, best_freq+0.00003)
     axins.set_yticks([])
+    axins.xaxis.set_major_formatter(FormatStrFormatter('%.5f'))
 
-    axins.tick_params(axis='x', labelsize=14)
+    axins.tick_params(axis='x', labelsize=10)
     mark_inset(ax1, axins, loc1=4, loc2=2, fc="none", ec="black", lw=1,ls='--', alpha=0.2)
     mark_inset(ax1, axins, loc1=3, loc2=3, fc="none", ec="black", lw=1,ls='--', alpha=0.2)
     for spine in axins.spines.values():

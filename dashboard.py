@@ -416,6 +416,9 @@ def bulk_combine(name, instruments, best_freq, cycles=2, outliers='eb', facecolo
 
 def dashboard(name):
     
+    titles_fontsize = 20
+    dash_titles = 30
+    
     tiers_tab = Table.read('data/new_TFM_table.csv', format='ascii.csv')
     tier = tiers_tab['Tier'][tiers_tab['Gaia source ID']==int(name)]
     if tier == 1:
@@ -522,9 +525,9 @@ def dashboard(name):
     if name in compare_list and name!='5866345647515558400':
         size= 160
         cu.draw_image(table['ra'][mask][0], table['dec'][mask][0], name, size, plot=False, save=False, ax=ax0)
-        ax0.set_xlabel('%.1f\''%(size*0.25/60), fontsize = 20)
-        ax0.set_ylabel('%.1f\''%(size*0.25/60), fontsize = 20)
-        ax0.set_title('PANSTARS cutout', fontsize=20, weight='bold')
+        ax0.set_xlabel('%.1f\''%(size*0.25/60), fontsize = titles_fontsize)
+        ax0.set_ylabel('%.1f\''%(size*0.25/60), fontsize = titles_fontsize)
+        ax0.set_title('PANSTARS cutout', fontsize=titles_fontsize, weight='bold')
     elif name=='5866345647515558400':
         imagen = imread("cool_plots/images/Color/5866345647515558400_EPIC.png")
         ax0.imshow(imagen, aspect='auto')
@@ -532,19 +535,19 @@ def dashboard(name):
     elif name not in compare_list and name not in ['5866474526572151936', '5880159842877908352']:
         rad= 20/3600
         ax0 = draw_image(table['ra'][mask][0], table['dec'][mask][0], name, rad, save=False, plot=False, ax=ax0)
-        ax0.set_xlabel('%.1f\'' % (rad * 60 * 2), fontsize = 20)
-        ax0.set_ylabel('%.1f\'' % (rad * 60 * 2), fontsize = 20)
-        ax0.set_title('DSS cutout', fontsize=20, weight='bold')
+        ax0.set_xlabel('%.1f\'' % (rad * 60 * 2), fontsize = titles_fontsize)
+        ax0.set_ylabel('%.1f\'' % (rad * 60 * 2), fontsize = titles_fontsize)
+        ax0.set_title('DSS cutout', fontsize=titles_fontsize, weight='bold')
     elif name in ['5866474526572151936', '5880159842877908352']:
         ax0.axis('off')
     
     # CMD
     pu.CMD('data/70_targets_extended.csv', s=50, color='k', alpha=0.5, ax=ax1)
     ax1.scatter(table['bprp0'][mask], table['mg0'][mask], s=300, color='r', marker='*')
-    ax1.set_xlabel("$(BP - RP)_{SH}$ [mag]", fontsize = 20)
-    ax1.set_ylabel("$M_{G,SH}$ [mag]", fontsize = 20)
-    ax1.tick_params(labelsize = 20)
-    ax1.set_title('Gaia CMD', fontsize=20, weight='bold')
+    ax1.set_xlabel("$(BP - RP)_{SH}$ [mag]", fontsize = titles_fontsize)
+    ax1.set_ylabel("$M_{G,SH}$ [mag]", fontsize = titles_fontsize)
+    ax1.tick_params(labelsize = titles_fontsize)
+    ax1.set_title('Gaia CMD', fontsize=titles_fontsize, weight='bold')
     
     # FOLDED LIGHT CURVES
     dictionary = {'2166378312964576256':72.427805, '5524022735225482624':7.988562, '2060841448854265216':60.545008,
@@ -566,7 +569,7 @@ def dashboard(name):
                 ax2.imshow(image2, aspect='auto')
         except:
             ax2.imshow(image2, aspect='auto')
-        # ax2.set_title('Folded light curve', fontsize=20, weight='bold')
+        # ax2.set_title('Folded light curve', fontsize=titles_fontsize, weight='bold')
         ax2.axis('off')
     else:
         # ins=['ATLAS']
@@ -576,18 +579,18 @@ def dashboard(name):
             ax2.imshow(image2)#, aspect='auto')
         else:
             ax2.imshow(image2, aspect='auto')
-        # ax2.set_title('Light curve', fontsize=20, weight='bold')
+        # ax2.set_title('Light curve', fontsize=titles_fontsize, weight='bold')
         ax2.axis('off')
     
     # FINKER OUTPUT
     freq = np.linspace(0.001,7,28000)
     _ = fink.Finker_mag(t, y, yerr, freq, show_plot=False, calc_error=False, ax1=ax3, ax2=ax5)
-    ax3.set_title("FINKER's frequency search", fontsize=20, weight='bold')
-    ax5.set_title("FINKER'S folded LC", fontsize=20, weight='bold')
+    ax3.set_title("FINKER's frequency search", fontsize=titles_fontsize, weight='bold')
+    ax5.set_title("FINKER'S folded LC", fontsize=titles_fontsize, weight='bold')
     
     # NEOWISE LIGHT CURVE
     lu.plot_ind_lightcurves(f'NEOWISE_lightcurves_std/{name}.csv',plot=False, savefig=False, ax=ax4, binsize=50)
-    ax4.set_title('NEOWISE ligth curve', fontsize=20, weight='bold')
+    ax4.set_title('NEOWISE ligth curve', fontsize=titles_fontsize, weight='bold')
     
     # SPECTRUM (CAFOS/LAMOST)
     spec_dict = {'2030965725082217088':('0200',None), '2074693061975359232':('0201',None),
@@ -595,13 +598,14 @@ def dashboard(name):
                  '1870955515858422656':('0204',0.9e-13), '2013187240507011456':('0205',3e-13),
                  '2060841448854265216':('0206',0.4e-12), '2166378312964576256':('0207',None),
                  '2200433413577635840':('0208',None)}
+    fies = ['4076568861833452160', '4299904519833646080']
     if name in spec_dict:
         unit = spec_dict.get(name)[0]
         spec_lim = spec_dict.get(name)[1]
         directory = 'data/cafos_spectra'
         su.cafos_spectra(f'{directory}/spectra1D_dswfz_uniB_{unit}.txt', 'data/TFM_table.csv', dered='fitz',
                           lines_file='data/spectral_lines.txt', plot=False, ax=ax7)
-        ax7.set_title('CAFOS dereddened spectrum', fontsize=20, weight='bold')
+        ax7.set_title('CAFOS dereddened spectrum', fontsize=titles_fontsize, weight='bold')
         if spec_lim is not None:
             ax7.set_ylim(top=spec_lim)
     elif name=='187219239343050880':
@@ -630,35 +634,57 @@ def dashboard(name):
         ax7.text(7000, 7000, '19-02-2012', fontsize=15, color='k')
         ax7.text(7000, 4000, '29-01-2014', fontsize=15, color='blue')
         ax7.text(7000, 1100, '17-10-2014', fontsize=15, color='orange')        
-        ax7.set_title('LAMOST dereddened spectrum', fontsize=20, weight='bold')
+        ax7.set_title('LAMOST dereddened spectrum', fontsize=titles_fontsize, weight='bold')
         ax7.set_ylim(top=18000, bottom=0)
+    elif name=='6123873398383875456':
+        directory = 'data/HERMES_spectra'
+        spec = pd.read_csv(f'{directory}/{name}_11-5.txt', sep=' ')
+        su.spectrum(spec['wavelength'], spec['flux'], title='', xrange=[6520,6610], #Av=5.7289376,
+                    units=['Angstrom','$ergs \: cm^{-2} \: s^{-1} \: \AA^{-1}$'], lines_file='data/spectral_lines.txt',
+                    priority=[1], plot=False, ax=ax7, color='k')
+        spec = pd.read_csv(f'{directory}/{name}_13-5.txt', sep=' ')
+        su.spectrum(spec['wavelength'], spec['flux'], title='', xrange=[6520,6610], #Av=5.7289376,
+                    units=['Angstrom','$ergs \: cm^{-2} \: s^{-1} \: \AA^{-1}$'], lines_file='data/spectral_lines.txt',
+                    priority=[1], plot=False, ax=ax7, color='blue', alpha=0.5)
+        
+        ax7.text(6530, 4.5e-16, '11-05-2024', fontsize=15, color='k')
+        ax7.text(6530, 4e-16, '13-05-2012', fontsize=15, color='blue')      
+        ax7.set_title(r'HERMES high resolution spectrum ($H\alpha$ region)', fontsize=titles_fontsize, weight='bold')
     elif name=='3444168325163139840':
         directory = 'data/lamost_spectra'
         su.lamost_spectra(f'{directory}/med-58149-HIP265740401_sp09-191.fits', 'data/TFM_table.csv',
                           lines_file='data/spectral_lines.txt', plot=False, ax=ax7)
-        ax7.set_title('LAMOST medium resolution spectrum', fontsize=20, weight='bold')
+        ax7.set_title('LAMOST medium resolution spectrum', fontsize=titles_fontsize, weight='bold')
         # ax7.set_ylim(bottom=1000, top=6000)
         # ax7.set_xlim(left=6250, right=6850)
         ax7.set_ylim(bottom=5000, top=37000)
         ax7.set_xlim(left=6270, right=6900)
+    elif name in fies:
+        directory = 'data/FIES-M_spectra'
+        spec = pd.read_csv(f'{directory}/{name}.txt', sep=' ')
+        su.spectrum(spec['wavelength'], spec['flux'], title='', xrange=[6500,6610], #Av=5.7289376,
+                    units=['Angstrom','W nm$^{-1}$ m$^{-2}$'], lines_file='data/spectral_lines.txt',
+                    priority=[1], plot=False, ax=ax7, color='k')
+        ax7.set_title(r'FIES medium resolution spectrum ($H\alpha$ region)', fontsize=titles_fontsize, weight='bold')
     else:
         ax7.axis('off')
     
     # GAIA BPRP SPECTRUM
     su.Gaia_XP([name], ax=ax8)
-    ax8.set_title('Gaia BPRP spectrum', fontsize=20, weight='bold')
+    ax8.set_title('Gaia BPRP spectrum', fontsize=titles_fontsize, weight='bold')
     
     # DASHBOARD TITLE
-    fig.suptitle('Gaia DR3 '+name, weight='bold', fontsize=30, x=0.02, horizontalalignment='left')
-    fig.text(0.98, 0.98, f'{tier_name} Tier', weight='bold', fontsize=30, horizontalalignment='right')
+    fig.suptitle('Gaia DR3 '+name, weight='bold', fontsize=dash_titles, x=0.02, horizontalalignment='left')
+    fig.text(0.98, 0.98, f'{tier_name} Tier', weight='bold', fontsize=dash_titles, horizontalalignment='right')
     
     plt.savefig(f'cool_plots/dashboards/{name}.png', bbox_inches="tight", format="png")
     # plt.show()
 
 # tabla = Table.read('data/70_targets.csv', format='ascii.csv')
 # for name in tabla['DR3_source_id']:
+# fies = ['4076568861833452160', '4299904519833646080']
 
-dashboard('4076568861833452160')
+dashboard('6123873398383875456')
 
 
 
