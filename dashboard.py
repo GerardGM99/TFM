@@ -421,18 +421,25 @@ def dashboard(name):
     
     tiers_tab = Table.read('data/new_TFM_table.csv', format='ascii.csv')
     tier = tiers_tab['Tier'][tiers_tab['Gaia source ID']==int(name)]
-    if tier == 1:
-        tier_name = 'Diamond'
-        facecolor = 'aquamarine'
-    elif tier == 2:
-        tier_name = 'Gold'
-        facecolor = 'khaki'
-    elif tier == 3:
-        tier_name = 'Silver'
-        facecolor = (0.9,0.9,0.9)
-    elif tier == 4:
-        tier_name = 'Bronze'
-        facecolor = (205/255, 127/255, 50/255)
+    def lighten_color(color, factor=0.5):
+        # Blend the color with white
+        return tuple(min(1, c * (1 - factor) + factor) for c in color)
+
+    if tier == 'Diamond':
+        tier_name='Diamond'
+        base_color = (127/255, 255/255, 212/255)
+        facecolor = lighten_color(base_color)
+    elif tier == 'Gold':
+        tier_name='Gold'
+        base_color = (240/255, 230/255, 140/255)
+        facecolor = lighten_color(base_color)
+    elif tier == 'Silver':
+        tier_name='Silver'
+        facecolor = (0.9, 0.9, 0.9)  # Silver does not use alpha, so no change needed
+    elif tier == 'Bronze':
+        tier_name='Bronze'
+        base_color = (205/255, 127/255, 50/255)
+        facecolor = lighten_color(base_color)
         
     table = Table.read('data/70_targets_extended.csv', format='ascii.csv')
     ztf = os.listdir('IRSA_ZTF_lightcurves_std')
@@ -532,6 +539,7 @@ def dashboard(name):
         imagen = imread("cool_plots/images/Color/5866345647515558400_EPIC.png")
         ax0.imshow(imagen, aspect='auto')
         ax0.axis('off')
+        ax0.set_title('EPIC cutout', fontsize=titles_fontsize, weight='bold')
     elif name not in compare_list and name not in ['5866474526572151936', '5880159842877908352']:
         rad= 20/3600
         ax0 = draw_image(table['ra'][mask][0], table['dec'][mask][0], name, rad, save=False, plot=False, ax=ax0)
@@ -551,8 +559,8 @@ def dashboard(name):
     
     # FOLDED LIGHT CURVES
     dictionary = {'2166378312964576256':72.427805, '5524022735225482624':7.988562, '2060841448854265216':60.545008,
-                  '2175699216614191360':4.769977, '2206767944881247744':2*4.625127/24, '5880159842877908352':31.770664, 
-                  '460686648965862528':3.7606215/24, '5965503866703572480':3.6605215/24, '4076568861833452160':28.450165, 
+                  '2175699216614191360':4.769977, '2206767944881247744':2*4.625127/24, '5880159842877908352':63.541328, 
+                  '460686648965862528':3.7606215/24, '5965503866703572480':7.321043/24, '4076568861833452160':56.90033, 
                   '5323384162646755712':2.792011, '2006088484204609408':2.5960645, '2061252975440642816':2.139183, 
                   '6123873398383875456':19.0433664/24, '5311969857556479616':13.7444267, '6228685649971375616':1.273980,
                   '1870955515858422656':46.211840}
@@ -613,9 +621,9 @@ def dashboard(name):
         x1, y1 = su.lamost_spectra(f'{directory}/spec-55977-GAC_080N37_V1_sp03-241.fits', 'data/TFM_table.csv', 
                                    dered='fitz', lines_file='data/spectral_lines.txt', plot=False, ax=ax7)
         x2, y2 = su.lamost_spectra(f'{directory}/spec-56687-GAC080N37V1_sp03-241.fits', 'data/TFM_table.csv', dered='fitz',
-                                   lines_file='data/spectral_lines.txt', plot=False, ax=ax7, color='blue')
+                                   plot=False, ax=ax7, color='blue')
         x3, y3 = su.lamost_spectra(f'{directory}/spec-56948-HD052351N362354B_sp14-213.fits', 'data/TFM_table.csv', dered='fitz',
-                                   lines_file='data/spectral_lines.txt', plot=False, ax=ax7, color='orange')
+                                   plot=False, ax=ax7, color='orange')
         
         inset_ax = inset_axes(ax7, width="100%", height="100%", 
                       bbox_to_anchor=(7100, 10000, 800, 7000), 
@@ -641,15 +649,15 @@ def dashboard(name):
         spec = pd.read_csv(f'{directory}/{name}_11-5.txt', sep=' ')
         su.spectrum(spec['wavelength'], spec['flux'], title='', xrange=[6520,6610], #Av=5.7289376,
                     units=['Angstrom','$ergs \: cm^{-2} \: s^{-1} \: \AA^{-1}$'], lines_file='data/spectral_lines.txt',
-                    priority=[1], plot=False, ax=ax7, color='k')
+                    priority=['1'], plot=False, ax=ax7, color='k')
         spec = pd.read_csv(f'{directory}/{name}_13-5.txt', sep=' ')
         su.spectrum(spec['wavelength'], spec['flux'], title='', xrange=[6520,6610], #Av=5.7289376,
                     units=['Angstrom','$ergs \: cm^{-2} \: s^{-1} \: \AA^{-1}$'], lines_file='data/spectral_lines.txt',
-                    priority=[1], plot=False, ax=ax7, color='blue', alpha=0.5)
+                    priority=['1', '2'], plot=False, ax=ax7, color='blue', alpha=0.5)
         
         ax7.text(6530, 4.5e-16, '11-05-2024', fontsize=15, color='k')
         ax7.text(6530, 4e-16, '13-05-2012', fontsize=15, color='blue')      
-        ax7.set_title(r'HERMES high resolution spectrum ($H\alpha$ region)', fontsize=titles_fontsize, weight='bold')
+        ax7.set_title(r'HERMES high resolution spectrum (around $H\alpha$)', fontsize=titles_fontsize, weight='bold')
     elif name=='3444168325163139840':
         directory = 'data/lamost_spectra'
         su.lamost_spectra(f'{directory}/med-58149-HIP265740401_sp09-191.fits', 'data/TFM_table.csv',
@@ -664,8 +672,8 @@ def dashboard(name):
         spec = pd.read_csv(f'{directory}/{name}.txt', sep=' ')
         su.spectrum(spec['wavelength'], spec['flux'], title='', xrange=[6500,6610], #Av=5.7289376,
                     units=['Angstrom','W nm$^{-1}$ m$^{-2}$'], lines_file='data/spectral_lines.txt',
-                    priority=[1], plot=False, ax=ax7, color='k')
-        ax7.set_title(r'FIES medium resolution spectrum ($H\alpha$ region)', fontsize=titles_fontsize, weight='bold')
+                    priority=['1', '2'], plot=False, ax=ax7, color='k')
+        ax7.set_title(r'FIES medium resolution spectrum (around $H\alpha$)', fontsize=titles_fontsize, weight='bold')
     else:
         ax7.axis('off')
     
@@ -674,20 +682,27 @@ def dashboard(name):
     ax8.set_title('Gaia BPRP spectrum', fontsize=titles_fontsize, weight='bold')
     
     # DASHBOARD TITLE
-    fig.suptitle('Gaia DR3 '+name, weight='bold', fontsize=dash_titles, x=0.02, horizontalalignment='left')
+    if name in ['4054010697162430592', '2083649030845658624', '5866345647515558400']:
+        fig.suptitle('Gaia DR3 '+name+' (hard X-ray emitter)', weight='bold', fontsize=dash_titles, x=0.02, horizontalalignment='left')
+    elif name == '473575777103322496':
+        fig.suptitle('Gaia DR3 '+name+' (UV excess)', weight='bold', fontsize=dash_titles, x=0.02, horizontalalignment='left')
+    else:
+        fig.suptitle('Gaia DR3 '+name, weight='bold', fontsize=dash_titles, x=0.02, horizontalalignment='left')
     fig.text(0.98, 0.98, f'{tier_name} Tier', weight='bold', fontsize=dash_titles, horizontalalignment='right')
     
     plt.savefig(f'cool_plots/dashboards/{name}.png', bbox_inches="tight", format="png")
+    plt.savefig(f'cool_plots/dashboards/pdfs/{name}.pdf', bbox_inches="tight", format="pdf")
     # plt.show()
 
 # tabla = Table.read('data/70_targets.csv', format='ascii.csv')
 # for name in tabla['DR3_source_id']:
-# fies = ['4076568861833452160', '4299904519833646080']
+#     dashboard(str(name))
 
-dashboard('6123873398383875456')
+# tal = ['4076568861833452160', '4299904519833646080', '6123873398383875456'] #fies, fies, hermes
+# for name in tal:
+#     dashboard(name)
 
-
-
+dashboard('4076568861833452160')
 
 # lamost med: 
 #   'med-58149-HIP265740401_sp09-191.fits' corresponds to 3444168325163139840

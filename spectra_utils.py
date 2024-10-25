@@ -24,6 +24,7 @@ from coord_utils import sky_xmatch
 from extinction import fitzpatrick99, remove, calzetti00
 from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation
+import matplotlib.gridspec as gridspec
 
        
 def Gaia_XP(id_list, out_path=None, plot=False, ax=None):
@@ -186,17 +187,15 @@ def show_lines(ax, lines_file, xrange, priority):
     if lines_file is not None:
         trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
         lines = Table.read(lines_file, format='ascii')
-        unique_priorities = np.unique(lines['prio'])
-        num_priorities = len(unique_priorities)
         lines_sorted = lines[np.argsort(lines['wavelength'])]
         prev_line_wl = None
         prev_line_wl2 = None
         prev_ymax = 0.85
         # prev_ymax2 = 0.75
         delta_perce2 = 1
-        for line, wl, prio in zip(lines_sorted['line'], lines_sorted['wavelength'], lines_sorted['prio']):
+        for line, wl, prio, color in zip(lines_sorted['line'], lines_sorted['wavelength'], lines_sorted['prio'], lines_sorted['color']):
             if (xrange[0] <= wl <= xrange[1]) & (prio in priority):
-                color = cmap(float(np.where(unique_priorities == prio)[0]) / (num_priorities - 1))
+                # color = cmap(float(np.where(unique_priorities == prio)[0]) / (num_priorities - 1))
                 if prev_line_wl is not None:
                     delta_wl = wl - prev_line_wl
                     delta_perce = delta_wl / (xrange[1] - xrange[0])
@@ -204,15 +203,15 @@ def show_lines(ax, lines_file, xrange, priority):
                         delta_wl2 = wl - prev_line_wl2
                         delta_perce2 = delta_wl2 / (xrange[1] - xrange[0])
                     if (delta_perce < 0.05) & (prev_ymax == 0.85) & (delta_perce2 > 0.02):
-                        ymax = 0.75
+                        ymax = 0.76
                     elif (delta_perce < 0.05) & (prev_ymax == 0.85) & (delta_perce2 < 0.02):
-                        ymax = 0.65
+                        ymax = 0.68
                     else:
                         ymax = 0.85
                 else:
                     ymax=0.85
                 ax.axvline(wl, ymax=ymax, ls='--', alpha=0.5, color=color)
-                ax.text(wl, ymax+0.03, line, transform = trans, fontdict={'fontsize':12}, rotation = 90, ha='center')
+                ax.text(wl, ymax+0.03, line, transform = trans, fontdict={'fontsize':11}, rotation = 90, ha='center')
                 prev_line_wl2 = prev_line_wl
                 prev_line_wl = wl
                 # prev_ymax2 = prev_ymax
@@ -221,7 +220,7 @@ def show_lines(ax, lines_file, xrange, priority):
 
 
 def cafos_spectra(input_filename, asciicords, xrange=[3500, 9501], calibration='flux', dered=None, 
-                  lines_file=None, priority=[1], plot=True, outdir=None, ax=None):
+                  lines_file=None, priority=['1'], plot=True, outdir=None, ax=None):
     '''
     Plots the CAFOS spectrum in the given file.
 
@@ -339,7 +338,7 @@ def cafos_spectra(input_filename, asciicords, xrange=[3500, 9501], calibration='
     
     
 def spectrum(wavelength, flux, title=None, Av=None, units=['Angstrom','counts'],
-             lines_file=None, priority=[1], xrange=[3500,9501], plot=True, outdir=None, ax=None, **kwargs):
+             lines_file=None, priority=['1'], xrange=[3500,9501], plot=True, outdir=None, ax=None, **kwargs):
     '''
     Plots the spectrum given the wavelengths and the fluxes.
 
@@ -420,7 +419,7 @@ def spectrum(wavelength, flux, title=None, Av=None, units=['Angstrom','counts'],
     
 
 def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250], dered=None, extra_med=False,
-                   lines_file=None, priority=[1] ,plot=True, outdir=None, ax=None, color='k'):
+                   lines_file=None, priority=['1'] ,plot=True, outdir=None, ax=None, color='k'):
     '''
     Plots the LAMOST spectrum in the given file.
 
@@ -487,8 +486,7 @@ def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250], dered=None, 
                           np.array(data['FLUX'][0][dirty_mask]).astype('double'))
             ax.set_title(f'{source_name}, LAMOST dereddened Low res spectrum, $A_v$ = {Av}', fontsize=16, weight='bold')
         else:
-            flux = data['flux']
-            ax.set_title(source_name+', CAFOS Low res spectrum', fontsize=16, weight='bold')
+            flux = data['FLUX'][0][dirty_mask]
         
         ax.plot(data['WAVELENGTH'][0][dirty_mask], flux, color=color)
         ax.set_title(f'{source_name}, LAMOST {resolu} spectrum', fontsize=16, weight='bold')
@@ -502,7 +500,7 @@ def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250], dered=None, 
             ax.set_xticks(np.arange(xrange[0], xrange[1], 500))
         ax.set_xlim(left=xrange[0], right=xrange[1])
         if xrange!=[3500, 9250]:
-            xrange_mask = (xrange[0] < data['WAVELENGTH'][0])*(data['WAVELENGTH'][0] < xrange[1])
+            xrange_mask = (xrange[0] < data['WAVELENGTH'][0][dirty_mask])*(data['WAVELENGTH'][0][dirty_mask] < xrange[1])
             flux_min = min(flux[xrange_mask])
             flux_max = max(flux[xrange_mask])
             ax.set_ylim(bottom=flux_min-50, top=flux_max+50)
@@ -630,7 +628,7 @@ def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250], dered=None, 
 #---------------------------------------------------------------------------------------------------------------#
 
 def spec_velocity(rest_wl, wavelengths, fluxs, site=None, RA=None, DEC=None, obs_time=None, 
-                  ax=None, legend=True, **kwargs):
+                  ax=None, legend=True, line='line', **kwargs):
     
     if ax is None:
         fig, ax = plt.subplots(figsize=(7, 5))
@@ -647,20 +645,104 @@ def spec_velocity(rest_wl, wavelengths, fluxs, site=None, RA=None, DEC=None, obs
     
     c = 299792.458 # km/s
     mean_flux = np.mean(fluxs)
-    velocity = heliocorr + c*(rest_wl-wavelengths)/wavelengths
+    velocity = heliocorr + c*(wavelengths-rest_wl)/wavelengths
     
-    ax.plot(velocity, fluxs/mean_flux, **kwargs)
-    ax.set_xlabel('Velocity [km/s]', fontsize=15)
-    ax.set_ylabel('Normilized Flux', fontsize=15)
+    if line=='line':
+        ax.plot(velocity, fluxs/mean_flux, **kwargs)
+    elif line=='scatter':
+        ax.scatter(velocity, fluxs/mean_flux, **kwargs)
+    ax.set_xlabel('Velocity [km/s]', fontsize=16)
+    ax.set_ylabel('Normilized Flux', fontsize=16)
     # ax.set_xticks(np.arange(6200, 6900, 50))
     # ax.set_xlim(left=6200, right=6901)
-    ax.tick_params(axis='both', labelsize=14)
+    ax.tick_params(axis='both', labelsize=16)
     
     if legend:
         ax.legend(fontsize=12)
+        
+
+def clasification_grid(wavelengths, fluxes, Obj_name, xrange=[5, 5], site=None, RA=None, DEC=None, obs_time=None):
+       
+    classification_lines = {'H':[4861, 6563], 
+                            'HeI':[4388, 4922, 5016],
+                            'HeI(weak)':[4144, 4471, 5876, 6678, 7065],
+                            'HeII':[4200, 4542, 4686],
+                            'CaII (K&H)':[3933.663, 3968.468], 
+                            'CaII (triplet)':[8498.03, 8542.09, 8662.14],
+                            'NaI':[5860, 5890, 5896], 
+                            'MgII':[4481], 
+                            'FeI':[3860, 5167], #8688
+                            'FeII':[4923.94, 5018.44]}
+    
+    fig = plt.figure(constrained_layout=True, figsize=(14, 16))
+    gs = gridspec.GridSpec(4, 2, figure=fig, wspace=0.15, hspace=0.3)
+    ax0 = fig.add_subplot(gs[0,0])
+    ax1 = fig.add_subplot(gs[0,1])
+    ax2 = fig.add_subplot(gs[1,0])
+    ax3 = fig.add_subplot(gs[1,1])
+    ax4 = fig.add_subplot(gs[2,0])
+    ax5 = fig.add_subplot(gs[2,1])
+    ax6 = fig.add_subplot(gs[3,0])
+    ax7 = fig.add_subplot(gs[3,1])
+    axes=[ax0, ax1, ax2, ax3, ax4, ax5, ax6, ax7]
+    transitions = [['H'], ['NaI'], ['HeI'], ['HeII'], ['CaII (K&H)'], ['CaII (triplet)'], ['FeI'], ['FeII', 'MgII']] #, 'HeI(weak)'
+    
+    for ax, transition in zip(axes, transitions):
+        for sub in transition:
+            rest_wls = classification_lines.get(sub)
+            for rest_wl in rest_wls:
+                mask = (wavelengths>rest_wl-xrange[0]) & (wavelengths<rest_wl+xrange[1])
+                label=fr'{rest_wl} $\AA$'
+                if transition == ['FeII', 'MgII']:
+                    sub = 'FeII and MgII'
+                    if rest_wl == 4481:
+                        label = fr'MgII {rest_wl} $\AA$'
+                    else:
+                        label = fr'FeII {rest_wl} $\AA$'
+                spec_velocity(rest_wl, wavelengths[mask], fluxes[mask], site=site, RA=RA, DEC=DEC, obs_time=obs_time, 
+                              ax=ax, legend=True, line='line', label=label)
+                
+        ax.tick_params(axis='both', direction='in')
+        ax.set_ylabel('')
+        ax.set_xlabel('')
+        ax.set_title(sub)
+        # ax.set_xlim(left=xrange[0], right=xrange[1])
+        
+    
+    fig.suptitle(Obj_name, fontsize=16, weight='bold', y=0.91)
+    # fig.suptitle('Gaia '+name, fontsize=16, weight='bold')
+    fig.text(0.5, 0.09, r'Velocity [km/s]', ha='center', va='center', fontsize=16)
+    fig.text(0.07, 0.5, r'Normilized Flux', ha='center', 
+             va='center', rotation='vertical', fontsize=16)
+        
+    plt.tight_layout()
+    plt.show()
+    # plt.savefig(f'{savepath}/FIES_{name}.png', bbox_inches = "tight", format = "png")
+    plt.close()
 
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#
+
+# def keplerian_velocity(r, M):
+#     """
+#     Keplerian orbital velocity at distance r from a central object of mass M.
+#     """
+#     G = 6.67430e-11  # Gravitational constant, [m^3 kg^(-1) s^(-2)]
+#     v_orb = np.sqrt(G * M / r)
+#     return v_orb
+
+# def disk_velocity_distribution(r_range, theta_range, M, i):
+#     """
+#     Computes the line-of-sight velocity for points in the disk, given a range of radii and angles.
+#     """
+#     velocities = []
+#     for r in r_range:
+#         for theta in theta_range:
+#             v_orb = keplerian_velocity(r, M)
+#             # Projected velocity along the line of sight
+#             v_los = v_orb * np.sin(i) * np.cos(theta)
+#             velocities.append(v_los)
+#     return velocities
 
 #thermal broadening 
 def sig_T(T, wl):
@@ -684,6 +766,7 @@ def line_width(sig_int, wl, R):
     sig_R = wl/(2*np.sqrt(2*np.log(2))*R)
     sigma = np.sqrt(sig_int**2 + sig_R**2)
     return sigma
+
 
 def gaussian_line(height, wl, sig, wl_range, n_points):
     '''
@@ -800,11 +883,11 @@ def model_spectral_lines(wl_range, lines, line_strenght, R, T, SNR, pix_size=Non
         dy1 = np.zeros(n_points)
         for position, height in zip(lines.values(), line_strenght):
             dlambda = rv_shift(position, vel)
-            #sigma = line_width(sig_T(T,position+dlambda), position+dlambda, R)
-            #dx, y = gaussian_line(height, position+dlambda, sigma, wl_range, n_points)
-            dx = np.linspace(wl_range[0], wl_range[1], n_points)
-            gamma, m = 1e5, 1.6735575 * 10e-27 #PROVISIONAL
-            y = voigt_line(position+dlambda, dx, gamma, T, m, R)
+            sigma = line_width(sig_T(T,position+dlambda), position+dlambda, R)
+            dx, y = gaussian_line(height, position+dlambda, sigma, wl_range, n_points)
+            # dx = np.linspace(wl_range[0], wl_range[1], n_points)
+            # gamma, m = 1e5, 1.6735575 * 10e-27 #PROVISIONAL
+            # y = voigt_line(position+dlambda, dx, gamma, T, m, R)
             dy1 += y #sum for each line
         spectra.append(dy1)
         

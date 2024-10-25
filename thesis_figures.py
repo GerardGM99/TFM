@@ -245,7 +245,7 @@ def show_lines(ax, lines_file, xrange, priority):
         lines_sorted = lines[np.argsort(lines['wavelength'])]
         prev_line_wl = None
         prev_line_wl2 = None
-        prev_ymax = 0.85+0.1 #0.83+0.08
+        prev_ymax = 0.83+0.08
         # prev_ymax2 = 0.75
         delta_perce2 = 1
         for line, wl, prio, color in zip(lines_sorted['line'], lines_sorted['wavelength'], lines_sorted['prio'], lines_sorted['color']):
@@ -257,14 +257,14 @@ def show_lines(ax, lines_file, xrange, priority):
                     if prev_line_wl2 is not None:
                         delta_wl2 = wl - prev_line_wl2
                         delta_perce2 = delta_wl2 / (xrange[1] - xrange[0])
-                    if (delta_perce < 0.05) & (prev_ymax == 0.85+0.1) & (delta_perce2 > 0.02):
-                        ymax = 0.81+0.1
-                    elif (delta_perce < 0.05) & (prev_ymax == 0.85+0.1) & (delta_perce2 < 0.02):
-                        ymax = 0.78+0.1
+                    if (delta_perce < 0.05) & (prev_ymax == 0.83+0.08) & (delta_perce2 > 0.02):
+                        ymax = 0.76+0.08
+                    elif (delta_perce < 0.05) & (prev_ymax == 0.83+0.08) & (delta_perce2 < 0.02):
+                        ymax = 0.72+0.08
                     else:
-                        ymax = 0.85+0.1
+                        ymax = 0.83+0.08
                 else:
-                    ymax=0.85+0.08
+                    ymax=0.83+0.08
                 ax.axvline(wl, ymax=ymax, ls='dotted', alpha=0.5, color=color)
                 ax.text(wl, ymax+0.01, line, transform = trans, fontdict={'fontsize':12}, rotation = 90, ha='center')
                 prev_line_wl2 = prev_line_wl
@@ -278,7 +278,7 @@ def all_low_spectra():
     
     fig, ax = plt.subplots(figsize=(12, 14))
     
-    show_lines(ax, 'data/spectral_lines.txt', xrange=[3900, 9000], priority=[1])
+    show_lines(ax, 'data/spectral_lines.txt', xrange=[3900, 9000], priority=['1'])
     plt.axvspan(6870, 6950, alpha=0.3, color='lightsteelblue')
     plt.axvspan(7590, 7700, alpha=0.3, color='lightsteelblue')
     plt.axvspan(7150, 7350, alpha=0.3, color='lightsteelblue')
@@ -329,7 +329,7 @@ def lamost_lowres():
     
     fig, ax = plt.subplots(figsize=(14, 7))
     
-    show_lines(ax, 'data/spectral_lines.txt', xrange=[3900, 9000], priority=[1])
+    show_lines(ax, 'data/spectral_lines.txt', xrange=[3900, 9000], priority=['1'])
     
     directory = 'data/lamost_spectra'
     x1, y1 = su.lamost_spectra(f'{directory}/spec-55977-GAC_080N37_V1_sp03-241.fits', 'data/TFM_table.csv', 
@@ -364,8 +364,8 @@ def hermes():
     
     fig, (ax1, ax2) = plt.subplots(ncols=1, nrows=2, figsize=(7, 10))
     
-    show_lines(ax1, 'data/spectral_lines.txt', xrange=[6558,6570], priority=[1])
-    show_lines(ax2, 'data/spectral_lines.txt', xrange=[5887,5898], priority=[1,3])
+    show_lines(ax1, 'data/spectral_lines.txt', xrange=[6558,6570], priority=['1'])
+    show_lines(ax2, 'data/spectral_lines.txt', xrange=[5887,5898], priority=['1','3'])
     
     name='6123873398383875456'
     directory = 'data/HERMES_spectra'
@@ -379,7 +379,7 @@ def hermes():
                 plot=False, ax=ax1, color='blue', alpha=0.5)
     
     ax1.text(6558.5, 7e-16, '11-05-2024', fontsize=15, color='k')
-    ax1.text(6558.5, 6.5e-16, '13-05-2012', fontsize=15, color='blue', alpha=0.5)
+    ax1.text(6558.5, 6.5e-16, '13-05-2024', fontsize=15, color='blue', alpha=0.5)
     
     spec = pd.read_csv(f'{directory}/{name}_11-5.txt', sep=' ')
     su.spectrum(spec['wavelength'], spec['flux'], title='', xrange=[5885,5898], #Av=5.7289376,
@@ -643,33 +643,436 @@ def sky_plot(x, y, frame='galactic', projection='aitoff', density=False, ax=None
         ax.legend(loc='upper center', fontsize=11, shadow=True)
         ax.grid(False)
          
-def spectral_clas(resolution):
-    low_res = [(3833,4068), (4000,4730), (4761,5267), (5796,5996), (6463,6663), (8143,8766)]
-    high_res = [(3920,3980), (4080,4160), (4310,4400), (4465,4490), (4850,4930), (5870,5910), 
-                (6550,6685), (8475,8675)]
+def spectral_clas():
+    low_res = [(3833,4730), (4761,5267), (5796,5996), (6530, 6850), (8143,8766)] #(4000,4730) 6463,6663
+    high_res = [(3920,3980), (4080,4160), (4310,4400), (4465,4490), (4840,4930), (5870,5910), 
+                (6540,6685), (8475,8675)]
     
     cafos_dict = {'2030965725082217088':'0200', '2074693061975359232':'0201',
-                 '2164630463117114496':'0202', '2206767944881247744':'0203',
-                 '1870955515858422656':'0204', '2013187240507011456':'0205',
-                 '2060841448854265216':'0206', '2166378312964576256':'0207',
-                 '2200433413577635840':'0208'}
+                  '2164630463117114496':'0202', '2206767944881247744':'0203',
+                  '1870955515858422656':'0204', '2013187240507011456':'0205',
+                  '2060841448854265216':'0206', '2166378312964576256':'0207',
+                  '2200433413577635840':'0208'}
     fies = ['4076568861833452160', '4299904519833646080', '2200433413577635840']
     lamost = ['187219239343050880'] #x3 low-res different epochs
     hermes = ['6123873398383875456'] #x2 different epochs
     
+    savepath='cool_plots/Thesis_figures/spectra_clas'
+    
     for name in cafos_dict:
-        fig = plt.figure(constrained_layout=True, figsize=(12, 3*3))
-        gs = gridspec.GridSpec(1, 2, figure=fig, wspace=0.2)
-        for xrange in low_res:
+        unit = cafos_dict.get(name)
+        fig = plt.figure(constrained_layout=True, figsize=(12, 10))
+        gs = gridspec.GridSpec(3, 2, figure=fig, wspace=0.1, hspace=0.25)
+        ax0 = fig.add_subplot(gs[0,:])
+        ax2 = fig.add_subplot(gs[1,0])
+        ax3 = fig.add_subplot(gs[1,1])
+        ax4 = fig.add_subplot(gs[2,0])
+        ax5 = fig.add_subplot(gs[2,1])
+        axes=[ax2, ax3, ax4, ax5]
         
+        su.cafos_spectra(f'data/cafos_spectra/spectra1D_dswfz_uniB_{unit}.txt', 'data/TFM_table.csv', 
+                          xrange=low_res[0], lines_file='data/spectral_lines.txt', priority=['1', 'raman'], 
+                          plot=False, dered='fitz', ax=ax0)
+        ax0.tick_params(axis='both', direction='in')
+        ax0.set_ylabel('')
+        ax0.set_xlabel('')
+        ax0.set_title('Gaia '+name+' (CAFOS)', fontsize=16, weight='bold')
         
+        ylim = ax0.get_ylim()
+        minimum_flux=max(ylim[0], 0)
+        ax0.set_ylim(bottom=minimum_flux, top=ylim[1]+ylim[1]*0.2)
+        
+        for ax, xrange in zip(axes, low_res[1:]):
+            su.cafos_spectra(f'data/cafos_spectra/spectra1D_dswfz_uniB_{unit}.txt', 'data/TFM_table.csv', 
+                              xrange=xrange, lines_file='data/spectral_lines.txt', priority=['1', 'raman'], 
+                              plot=False, dered='fitz', ax=ax)
+            ax.tick_params(axis='both', direction='in')
+            ax.set_ylabel('')
+            ax.set_xlabel('')
+            ax.set_title('')
             
+        # fig.suptitle('Gaia '+name, fontsize=16, weight='bold')
+        fig.text(0.5, 0.07, r'Rest wavelength [$\AA$]', ha='center', va='center', fontsize=15)
+        fig.text(0.07, 0.5, r'Flux [$ergs \: cm^{-2} \: s^{-1} \: \AA^{-1}$]', ha='center', 
+                  va='center', rotation='vertical', fontsize=15)
+        
+        plt.tight_layout()
+        # plt.show()
+        plt.savefig(f'{savepath}/CAFOS_{name}.png', bbox_inches = "tight", format = "png")
+        plt.close()
+    
+    lamost_files=['spec-55977-GAC_080N37_V1_sp03-241.fits', 'spec-56687-GAC080N37V1_sp03-241.fits', 'spec-56948-HD052351N362354B_sp14-213.fits']
+    color=['k', 'blue', 'orange']
+    dates=['19-02-2012', '29-01-2014', '17-10-2014']
+    for file, col, date in zip(lamost_files, color, dates):
+        name = lamost[0]
+        fig = plt.figure(constrained_layout=True, figsize=(12, 10))
+        gs = gridspec.GridSpec(3, 2, figure=fig, wspace=0.15, hspace=0.25)
+        ax0 = fig.add_subplot(gs[0,:])
+        ax2 = fig.add_subplot(gs[1,0])
+        ax3 = fig.add_subplot(gs[1,1])
+        ax4 = fig.add_subplot(gs[2,0])
+        ax5 = fig.add_subplot(gs[2,1])
+        axes=[ax2, ax3, ax4, ax5]
+        
+        directory = 'data/lamost_spectra'
+        su.lamost_spectra(f'{directory}/{file}', 'data/TFM_table.csv', 
+                          xrange=low_res[0], lines_file='data/spectral_lines.txt', priority=['1', 'raman'],
+                          dered=True, plot=False, ax=ax0, color=col)
+        
+        
+        ax0.tick_params(axis='both', direction='in')
+        ax0.set_ylabel('')
+        ax0.set_xlabel('')
+        ax0.set_title('Gaia '+name+' (LAMOST low-res)'+f'\n{date}', fontsize=16, weight='bold')
+        # ax0.text(0.5, 0.98, date, fontsize=15, ha='center', va='center')
+        
+        ylim = ax0.get_ylim()
+        ax0.set_ylim(bottom=ylim[0]-100, top=ylim[1]+1200)
+        
+        for ax, xrange in zip(axes, low_res[1:]):
+            su.lamost_spectra(f'{directory}/{file}', 'data/TFM_table.csv', 
+                              xrange=xrange, lines_file='data/spectral_lines.txt', priority=['1', 'raman'],
+                              dered=True, plot=False, ax=ax, color=col)
+            ax.tick_params(axis='both', direction='in')
+            ax.set_ylabel('')
+            ax.set_xlabel('')
+            ax.set_title('')
+            ylim = ax.get_ylim()
+            ax.set_ylim(bottom=ylim[0]-100, top=ylim[1]+500)
+            
+        # fig.suptitle('Gaia '+name, fontsize=16, weight='bold')
+        fig.text(0.5, 0.07, r'Rest wavelength [$\AA$]', ha='center', va='center', fontsize=15)
+        fig.text(0.06, 0.5, r'Flux [$ergs \: cm^{-2} \: s^{-1} \: \AA^{-1}$]', ha='center', 
+                  va='center', rotation='vertical', fontsize=15)
+        
+        plt.tight_layout()
+        # plt.show()
+        plt.savefig(f'{savepath}/LAMOST_{name}_{date}.png', bbox_inches = "tight", format = "png")
+        plt.close()
+        
+    directory = 'data/HERMES_spectra'
+    name='6123873398383875456'
+    hermes_files=[f'{directory}/{name}_11-5.txt', f'{directory}/{name}_13-5.txt']
+    color=['k', 'blue']
+    dates=['11-05-2024', '13-05-2024']
+    for file, col, date in zip(hermes_files, color, dates):
+        
+        fig = plt.figure(constrained_layout=True, figsize=(12, 15))
+        gs = gridspec.GridSpec(4, 2, figure=fig, wspace=0.15, hspace=0.25)
+        ax0 = fig.add_subplot(gs[0,0])
+        ax1 = fig.add_subplot(gs[0,1])
+        ax2 = fig.add_subplot(gs[1,0])
+        ax3 = fig.add_subplot(gs[1,1])
+        ax4 = fig.add_subplot(gs[2,0])
+        ax5 = fig.add_subplot(gs[2,1])
+        ax6 = fig.add_subplot(gs[3,0])
+        ax7 = fig.add_subplot(gs[3,1])
+        axes=[ax0, ax1, ax2, ax3, ax4, ax5, ax6, ax7]
+        
+        # ylim = ax0.get_ylim()
+        # ax0.set_ylim(bottom=ylim[0]-100, top=ylim[1]+1200)
+        
+        if col == 'blue':
+            alpha=0.5
+        else:
+            alpha=1
+            
+        for ax, xrange in zip(axes, high_res):
+            spec = pd.read_csv(file, sep=' ')
+            su.spectrum(spec['wavelength'], spec['flux'], title='', xrange=xrange, Av=0.21,
+                        lines_file='data/spectral_lines.txt', priority=['1', 'raman', '2', '3'],
+                        plot=False, ax=ax, color=col, alpha=alpha)
+            ax.tick_params(axis='both', direction='in')
+            ax.set_ylabel('')
+            ax.set_xlabel('')
+            ax.set_title('')
+            # ylim = ax.get_ylim()
+            # ax.set_ylim(bottom=ylim[0]-100, top=ylim[1]+500)
+        
+        fig.suptitle('Gaia '+name+' (HERMES)'+f'\n{date}', fontsize=16, weight='bold', y=0.93)
+        # fig.suptitle('Gaia '+name, fontsize=16, weight='bold')
+        fig.text(0.5, 0.09, r'Rest wavelength [$\AA$]', ha='center', va='center', fontsize=15)
+        fig.text(0.07, 0.5, r'Flux [number of counts]', ha='center', 
+                  va='center', rotation='vertical', fontsize=15)
+        
+        plt.tight_layout()
+        # plt.show()
+        plt.savefig(f'{savepath}/HERMES_{name}_{date}.png', bbox_inches = "tight", format = "png")
+        plt.close()
+    
+    av = [1.11, 0.71, 3.7]
+    for name, AV in zip(fies, av):
+        
+        fig = plt.figure(constrained_layout=True, figsize=(12, 15))
+        gs = gridspec.GridSpec(4, 2, figure=fig, wspace=0.15, hspace=0.25)
+        ax0 = fig.add_subplot(gs[0,0])
+        ax1 = fig.add_subplot(gs[0,1])
+        ax2 = fig.add_subplot(gs[1,0])
+        ax3 = fig.add_subplot(gs[1,1])
+        ax4 = fig.add_subplot(gs[2,0])
+        ax5 = fig.add_subplot(gs[2,1])
+        ax6 = fig.add_subplot(gs[3,0])
+        ax7 = fig.add_subplot(gs[3,1])
+        axes=[ax0, ax1, ax2, ax3, ax4, ax5, ax6, ax7]
+        
+        # ylim = ax0.get_ylim()
+        # ax0.set_ylim(bottom=ylim[0]-100, top=ylim[1]+1200)
+        
+        for ax, xrange in zip(axes, high_res):
+            spec = pd.read_csv(f'data/FIES-M_spectra/{name}.txt', sep=' ')
+            su.spectrum(spec['wavelength'], spec['flux'], title='', xrange=xrange, Av=AV,
+                        lines_file='data/spectral_lines.txt', priority=['1', 'raman', '2', '3'],
+                        plot=False, ax=ax, color='k')
+            ax.tick_params(axis='both', direction='in')
+            ax.set_ylabel('')
+            ax.set_xlabel('')
+            ax.set_title('')
+            ylim = ax.get_ylim()
+            ax.set_ylim(top=ylim[1]+ylim[1]*0.3)
+        
+        fig.suptitle('Gaia '+name+' (FIES med-res)', fontsize=16, weight='bold', y=0.91)
+        # fig.suptitle('Gaia '+name, fontsize=16, weight='bold')
+        fig.text(0.5, 0.09, r'Rest wavelength [$\AA$]', ha='center', va='center', fontsize=15)
+        fig.text(0.07, 0.5, r'Flux [W nm$^{-1}$ m$^{-2}$]', ha='center', 
+                 va='center', rotation='vertical', fontsize=15)
+        
+        plt.tight_layout()
+        # plt.show()
+        plt.savefig(f'{savepath}/FIES_{name}.png', bbox_inches = "tight", format = "png")
+        plt.close()
+        
+def lc_folding(name, time, y, uncert, best_freq, ax, t_start=None, cycles=1, outliers='eb', yunits='mag'):
+    
+    # Remove outliers
+    sigma = remove_outliers(y, method=outliers)
+    
+    time = np.array(time)[sigma]
+    y = np.array(y)[sigma]
+    if uncert is not None:
+        uncert = np.array(uncert)[sigma]
+    
+    # Set initial time
+    if t_start is None:
+        min_index = np.argmax(y)
+        time = time - time.iloc[min_index]
+    else:
+        time = time - t_start
+    
+    name = name.split('_')[0]
+    
+    # Plot folded light curve
+    #fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 6))
+    ax.errorbar((time * best_freq) % cycles, y,yerr=uncert, fmt='o', ecolor='black', capsize=2, elinewidth=2,
+                 markersize=2, markeredgewidth=0.5, alpha=0.8, color='black',zorder=0, mec='black')
+    ax.set_xlabel('Phase', fontsize=15)
+    if yunits=='mag':
+        ax.invert_yaxis()
+        ax.set_ylabel(r'Magnitude', fontsize=15)
+    elif yunits=='flux':
+        ax.set_ylabel(r'Flux', fontsize=15)
+    ax.tick_params(axis='both', which='major', labelsize=14)
+    # plt.suptitle(name, fontsize=20, weight='bold')
+    if ((24*60)/best_freq)<60:
+        ax.set_title(f'{name}\nFreq: {best_freq:.4f}'+ '$d^{-1}$'+f'; period: {(24*60) / best_freq:.3f}' + r'$ \, min$',
+                     fontsize=15, weight='bold')
+    elif ((((24*60)/best_freq)>60) and (((24*60)/best_freq)<(24*60))):
+        ax.set_title(f'{name}\nFreq: {best_freq:.4f}'+ '$d^{-1}$'+f'; period: {24 / best_freq:.3f}' + r'$ \, hr$',
+                     fontsize=15, weight='bold')
+    else:
+        ax.set_title(f'{name}\nFreq: {best_freq:.4f}'+ '$d^{-1}$'+f'; period: {1/best_freq:.3f}' + r'$ \, d$',
+                     fontsize=15, weight='bold')
+   
+
+
+def lc_combined(name, t_list, y_list, y_list_err, filt_list, best_freq, t_start=None, cycles=2, outliers='eb', facecolor=None):
+    
+    # Dictionary of colors for each instrument/filter combination
+    color_dict = {
+        ('ZTF, zg'):'g',
+        ('ZTF, zr'):'r',
+        ('ZTF, zi'):'goldenrod',
+        ('IRSA_ZTF, zg'):'g',
+        ('IRSA_ZTF, zr'):'r',
+        ('IRSA_ZTF, zi'):'goldenrod',
+        ('ASAS-SN, V'):'darkcyan',
+        ('ASAS-SN, g'):'blue',
+        ('ATLAS, o'):'orange',
+        ('ATLAS, c'):'cyan',
+        ('NEOWISE, W1'):'darkred',
+        ('NEOWISE, W2'):'slategray',
+        ('BLACKGEM, u'):'purple',
+        ('BLACKGEM, g'):'skyblue',
+        ('BLACKGEM, r'):'orange',
+        ('BLACKGEM, i'):'firebrick',
+        ('BLACKGEM, z'):'sienna',
+        ('BLACKGEM, q'):'black',
+        ('TESS, QLP'):'magenta',
+        ('TESS, SPOC'):'magenta',
+        ('TESS, TASOC'):'magenta',
+        ('TESS, CDIPS'):'magenta',
+        ('TESS, TGLC'):'magenta',
+        ('TESS, GSFC-ELEANOR-LITE'):'magenta'}
+    
+    if len(t_list)==1:
+        fig = plt.figure(constrained_layout=True, figsize=(7.3,7.3), facecolor=facecolor)
+    else:
+        fig = plt.figure(figsize=(5,2.9*len(t_list)), facecolor=facecolor)
+    height_ratios = np.repeat(1, len(t_list))
+    gs = gridspec.GridSpec(len(t_list), 1, height_ratios=height_ratios)
+    
+    if len(t_list)==1:
+        ax1 = fig.add_subplot(gs[0])
+        lc_folding(name, t_list[0], y_list[0], y_list_err[0], best_freq, ax1, t_start=t_start, cycles=cycles, outliers=outliers, yunits='mag')
+        # Change color depending on ins and filter
+        errorbars = ax1.get_children()
+        plot_color = color_dict.get(filt_list[0], 'black')
+        for j in range(4):
+            errorbars[j].set_color(plot_color)
+        trans = transforms.blended_transform_factory(ax1.transAxes, ax1.transAxes)
+        ax1.text(0.02,0.93, filt_list[0], fontsize=14, transform = trans, style='italic')
+    else:
+        for i in range(len(t_list)):
+            if filt_list[i].split(',')[0]=='TESS':
+                yunits='flux'
+            else:
+                yunits='mag'
+                
+            if i==0:
+                ax1 = fig.add_subplot(gs[i])
+                lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax1, t_start=t_start, cycles=cycles, outliers=outliers, yunits=yunits)
+                # Change color depending on ins and filter
+                errorbars = ax1.get_children()
+                plot_color = color_dict.get(filt_list[i], 'black')
+                for j in range(4):
+                    errorbars[j].set_color(plot_color)
+                ax1.tick_params(axis='x', labelbottom=False, direction='in')
+                ax1.set_xlabel('')
+                trans = transforms.blended_transform_factory(ax1.transAxes, ax1.transAxes)
+                ax1.text(0.02,0.93, filt_list[i], fontsize=14, transform = trans, style='italic')
+            elif i==max(range(len(t_list))):
+                ax = fig.add_subplot(gs[i], sharex=ax1)
+                lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax, t_start=t_start, cycles=cycles, outliers=outliers, yunits=yunits)
+                # Change color depending on ins and filter
+                errorbars = ax.get_children()
+                plot_color = color_dict.get(filt_list[i], 'black')
+                for j in range(4):
+                    errorbars[j].set_color(plot_color)
+                ax.set_title('')
+                trans = transforms.blended_transform_factory(ax.transAxes, ax.transAxes)
+                ax.text(0.02,0.93, filt_list[i], fontsize=14, transform = trans, style='italic')
+            else:
+                ax = fig.add_subplot(gs[i], sharex=ax1)
+                lc_folding(name, t_list[i], y_list[i], y_list_err[i], best_freq, ax, t_start=t_start, cycles=cycles, outliers=outliers, yunits=yunits)
+                # Change color depending on ins and filter
+                errorbars = ax.get_children()
+                plot_color = color_dict.get(filt_list[i], 'black')
+                for j in range(4):
+                    errorbars[j].set_color(plot_color)
+                ax.set_title('')
+                ax.tick_params(axis='x', labelbottom=False, direction='in')
+                ax.set_xlabel('')
+                trans = transforms.blended_transform_factory(ax.transAxes, ax.transAxes)
+                ax.text(0.02,0.93, filt_list[i], fontsize=14, transform = trans, style='italic')
+        
+    gs.update(hspace=0)
+    
+    
+def bulk_combine(name, instruments, best_freq, cycles=2, outliers='eb', facecolor=None):
+
+    times=[]
+    mags=[]
+    mag_errs=[]
+    filts=[]
+    for ins in instruments:
+        if ins!='TESS':
+            nams = name.split('_')[0]
+            table = pd.read_csv(f'{ins}_lightcurves_std/{nams}.csv')
+        else:
+            table = pd.read_csv(f'{ins}_lightcurves_std/{name}.csv')
+        bands=list(set(table['filter']))
+        if 'ZTF' in ins:
+            desired_order = ['zg', 'zr', 'zi']
+            def sort_key(band):
+                return desired_order.index(band)
+            bands.sort(key=sort_key)
+        elif 'ATLAS' in ins:
+            desired_order = ['c', 'o']
+            def sort_key(band):
+                return desired_order.index(band)
+            bands.sort(key=sort_key)
+        elif 'ASAS' in ins:
+            desired_order = ['g', 'V']
+            def sort_key(band):
+                return desired_order.index(band)
+            bands.sort(key=sort_key)
+            
+        for i, band in enumerate(bands):
+            t=table['bjd'].loc[table['filter']==band]
+            if ins=='TESS':
+                y=table['flux'].loc[table['filter']==band]
+                yerr=table['fluxerr'].loc[table['filter']==band]
+            else:
+                y=table['mag'].loc[table['filter']==band]
+                yerr=table['magerr'].loc[table['filter']==band]
+            if i == 0:
+                min_index = np.argmax(y)
+                t_start = t.iloc[min_index]
+            filt = table['inst'][0] + ', ' + band
+            times.append(t)
+            mags.append(y)
+            mag_errs.append(yerr)
+            filts.append(filt)
+
+    lc_combined(name, times, mags, mag_errs, filts, best_freq, t_start=t_start, cycles=cycles, outliers=outliers, facecolor=facecolor)
+
+    plt.tight_layout()
+    plt.savefig(f'cool_plots/Thesis_figures/folds/{name}.png', bbox_inches="tight", format="png")
+    plt.close()
+    
+def fold_lc_grid():
+    
+    dictionary = {'2166378312964576256':72.427805, '5524022735225482624':7.988562, '2060841448854265216':60.545008,
+                  '2175699216614191360':4.769977, '2206767944881247744':2*4.625127/24, '5880159842877908352':63.541328, 
+                  '460686648965862528':3.7606215/24, '5965503866703572480':7.321043/24, '4076568861833452160':56.90033, 
+                  '5323384162646755712':2.792011, '2006088484204609408':2.5960645, '2061252975440642816':2.139183, 
+                  '6123873398383875456':19.0433664/24, '5311969857556479616':13.7444267, '6228685649971375616':1.273980,
+                  '1870955515858422656':46.211840}
+    
+    ztf = os.listdir('IRSA_ZTF_lightcurves_std')
+    for i, fil in enumerate(ztf):
+        ztf[i] = fil.split('.')[0]
+    asas = os.listdir('ASAS-SN_lightcurves_std')
+    for i, fil in enumerate(asas):
+        asas[i] = fil.split('.')[0]
+    atlas = os.listdir('ATLAS_lightcurves_std')
+    for i, fil in enumerate(atlas):
+        atlas[i] = fil.split('.')[0]
+    
+    for name in dictionary:
+        
+        inss = []
+        if name in ztf:
+            inss.append('IRSA_ZTF')
+        elif name in atlas and name in asas:
+            inss.append('ATLAS')
+            inss.append('ASAS-SN')
+        elif name in atlas and name not in asas:
+            inss.append('ATLAS')
+        elif name not in atlas and name in asas:
+            inss.append('ASAS-SN')
+            
+        period = dictionary.get(name)
+        if name=='4076568861833452160':
+            inss=['ASAS-SN']
+        bulk_combine(name, inss, 1/(period), cycles=2, outliers='eb', facecolor=None)
     
 #%% LIGHTCURVES
 stacked_og_lc('2060841448854265216', ['IRSA_ZTF', 'ATLAS', 'ASAS-SN', 'NEOWISE'])
 ax = plt.gca()
 ax.set_title('Gaia 2060841448854265216', fontsize=16, weight='bold')
-plt.show()
+# plt.show()
+plt.savefig('cool_plots/Thesis_figures/lightcurves.png', bbox_inches = "tight", format = "png")
 
 #%% FINKER OUTPUT
 tubla = pd.read_csv('IRSA_ZTF_lightcurves_std/2060841448854265216.csv')
@@ -685,7 +1088,8 @@ axes_params(ax1, title='', xlabel=r'Frequency [$d^{-1}$]', ylabel='Squared Resid
 axes_params(ax2, title='', xlabel=r'Phase', ylabel='Magnitude', xlim=None, ylim=None, legend=False,
                 title_size=14, label_size=15)
 fig.suptitle('Gaia 2060841448854265216', fontsize=16, weight='bold')
-plt.show()
+# plt.show()
+plt.savefig('cool_plots/Thesis_figures/FINKER_output.png', bbox_inches = "tight", format = "png")
 
 #%% SKYPLOTS
 random = Table.read('data/10mili.vot', format="votable") #10mili.vot, random_sources-result.vot
@@ -725,19 +1129,22 @@ plt.close()
 
 #%% ALL CAFOS SPECTRA
 all_low_spectra()
-plt.show()
+# plt.show()
+plt.savefig('cool_plots/Thesis_figures/all_cafos.png', bbox_inches = "tight", format = "png")
 plt.close()
 
 #%% LAMOST LOW RES
 
 lamost_lowres()
-plt.show()
+# plt.show()
+plt.savefig('cool_plots/Thesis_figures/lamost_lowres.png', bbox_inches = "tight", format = "png")
 plt.close()
 
 #%% HERMES
 
 hermes()
-plt.show()
+# plt.show()
+plt.savefig('cool_plots/Thesis_figures/hermes_na_doublet.png', bbox_inches = "tight", format = "png")
 plt.close()
 
 #%% HERMES VELOCITY
@@ -773,14 +1180,22 @@ ax2.set_xlim(left=-60, right=60)
 ax2.set_title('Observation date: 13-5-2024', fontsize=15)
 # ax.set_ylim(top=0.4)
 plt.tight_layout()
-plt.show()
+# plt.show()
+plt.savefig('cool_plots/Thesis_figures/hermes_na_doublet_vel.png', bbox_inches = "tight", format = "png")
 plt.close()
 
 #%% HALPHA VEL GRID
 
 H_velocity_spec()
 plt.tight_layout()
-plt.show()
+# plt.show()
+plt.savefig('cool_plots/Thesis_figures/Halpha_velocity.png', bbox_inches = "tight", format = "png")
 plt.close()
 
 #%% SPECTRAL LINES CLASSIFICATION
+
+spectral_clas()
+
+#%%
+
+fold_lc_grid()

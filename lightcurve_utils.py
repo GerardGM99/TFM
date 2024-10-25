@@ -1040,12 +1040,12 @@ def plot_ind_lightcurves(file_name, ref_mjd=58190.45, y_ax='mag', outliers='medi
         ('ATLAS', 'c'):'cyan',
         ('NEOWISE', 'W1'):'darkred',
         ('NEOWISE', 'W2'):'slategray',
-        ('BLACKGEM', 'u'):'purple',
-        ('BLACKGEM', 'g'):'skyblue',
-        ('BLACKGEM', 'r'):'orange',
-        ('BLACKGEM', 'i'):'firebrick',
-        ('BLACKGEM', 'z'):'sienna',
-        ('BLACKGEM', 'q'):'black',
+        ('BG', 'u'):'purple',
+        ('BG', 'g'):'skyblue',
+        ('BG', 'r'):'orange',
+        ('BG', 'i'):'firebrick',
+        ('BG', 'z'):'sienna',
+        ('BG', 'q'):'black',
         ('MeerLICHT', 'u'):'purple',
         ('MeerLICHT', 'g'):'skyblue',
         ('MeerLICHT', 'r'):'orange',
@@ -1112,6 +1112,7 @@ def plot_ind_lightcurves(file_name, ref_mjd=58190.45, y_ax='mag', outliers='medi
                 ax.errorbar(t_observed - ref_mjd, y_observed, xerr=t_err, yerr=uncert, color=plot_color, label=band, 
                             fmt="o", capsize=cs, elinewidth=ew, markersize=ms, markeredgecolor='black', markeredgewidth=0.4)
                 ax.set_ylabel("Magnitude", family="serif", fontsize=16)
+                ax.invert_yaxis()
                     
             if y_ax == 'flux':
                 sigma = remove_outliers(file['flux'][file['filter'] == band], method=outliers)
@@ -1138,7 +1139,6 @@ def plot_ind_lightcurves(file_name, ref_mjd=58190.45, y_ax='mag', outliers='medi
         ax.tick_params(which='minor', length=4, direction='out')
         ax.tick_params(labelsize=16)
         ax.minorticks_on()
-        ax.invert_yaxis()
         xmin, xmax = ax.get_xlim()    
         
         def xconv(x):
@@ -1469,7 +1469,7 @@ def lc_combined(name, t_list, y_list, y_list_err, filt_list, best_freq, t_start=
     gs.update(hspace=0)
     
     
-def bulk_combine(name, instruments, best_freq, cycles=2, outliers='eb'):
+def bulk_combine(name, instruments, best_freq, cycles=2, outliers='eb', savepath=None):
     '''
     Calls lc_combined with the instruments given.
     
@@ -1535,6 +1535,8 @@ def bulk_combine(name, instruments, best_freq, cycles=2, outliers='eb'):
     lc_combined(name, times, mags, mag_errs, filts, best_freq, t_start=t_start, cycles=cycles, outliers=outliers)
 
     plt.tight_layout()
+    if savepath is not None:
+        plt.savefig(f'{savepath}.png', bbox_inches="tight", format="png")
     plt.show()
 
 #---------------------------------------------------------------------------------------------------------------#

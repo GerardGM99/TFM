@@ -16,7 +16,11 @@ from lightcurve_utils import plot_lightcurves, plot_ind_lightcurves
 
 # plot_lightcurves('IRSA_ZTF_lightcurves_std', outliers='eb')
 
-plot_ind_lightcurves('TESS_lightcurves_std/2060841448854265216_S14_QLP.csv', ref_mjd=58190.45, y_ax='flux',plot=True, savefig=False)
+plot_ind_lightcurves('TESS_lightcurves_std/2175699216614191360_S15_TASOC.csv', ref_mjd=58190.45, y_ax='flux',plot=True, savefig=False)
+
+# plot_ind_lightcurves('NEOWISE_lightcurves_std/2060841448854265216.csv', plot=True, savefig=False, binsize=50)
+
+# plot_ind_lightcurves('IRSA_ZTF_lightcurves_std/2175699216614191360.csv', plot=True, savefig=False)
 
 #%%
 from Finker_script import use_finker
@@ -53,7 +57,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-bulk_combine('2206767944881247744', ['IRSA_ZTF'], 2.5944720347155257, cycles=2, outliers='median')
+bulk_combine('2175699216614191360_S15_TASOC', ['TESS'], 1/(2*4.769977), cycles=1, outliers='median')
 
 # plt.tight_layout()
 # plt.show()
@@ -174,8 +178,8 @@ for ra, dec, name in zip(asciicords['ra'], asciicords['dec'], asciicords['DR3_so
 
 import spectra_utils as su
 
-_,_,_,_ = su.model_spectral_lines([6553, 6573], {'Ha':6563}, [0.8], 5000, 7000, 10, cont=False, rv=[0])
-#_,_,_,_ = su.model_spectral_lines([4000, 7000], {'Ha':6563}, [0.8], 25000, 7000, 20, cont=True, rv=[-20, 20])
+_,_,_,_ = su.model_spectral_lines([6500, 6650], {'Ha':6563}, [0.5], 5000, 6000, 20, cont=True, rv=[-150,150])
+# _,_,_,_ = su.model_spectral_lines([6560, 6570], {'Ha':6563}, [0.8], 25000, 7000, 20, cont=True, rv=[-20, 20])
 #su.rv_crosscorr_err(n_boot, wl_range, n_points, lines, line_strenght, R, T, SNR)
 
 #%%
@@ -252,16 +256,16 @@ t.write('Calar_transient_list.txt', format='ascii')
 
 from finder_chart import get_finder
 
-name=['AT2024gfg', 'AT2024fpb', 'AT2024ggi', 'AT2024dgr']
-ra=[269.483, 287.460, 169.592, 288.192]
-dec=[+85.550, -17.939, -32.838, -19.269]
-mag_transient=[18.19, 17.90, 18.92, 16.83]
+name=['AT2024psn']
+ra=[192.6559775]
+dec=[+41.1067475]
+mag_transient=[18.6]
 
 for i in range(len(name)):
     get_finder(ra[i], dec[i], name[i], 3/60, debug=True,
                starlist=None, print_starlist=True, telescope="Calar",
-               directory="calar_finders", minmag=11, maxmag=13, mag=mag_transient[i],
-               image_file=None)
+               directory=".", minmag=9, maxmag=15, mag=mag_transient[i],
+               image_file=None, finder_ext='png')
 
 #%%
 import matplotlib.pyplot as plt
@@ -270,35 +274,39 @@ from astropy.time import Time
 import astropy.units as u
 from lightcurve_utils import next_transits
 
-thing = Table.read('IRSA_ZTF_lightcurves_std/2006088484204609408.csv', format='ascii.csv')
-
-period = 2.596044
-y = thing['mag']
-time = Time(thing['mjd'], format='mjd')
+thing = Table.read('IRSA_ZTF_lightcurves_std/2061252975440642816.csv', format='ascii.csv')
+mask = thing['filter']=='zg' 
+period = 2.139183
+y = thing['mag'][mask]
+time = Time(thing['bjd'][mask], format='mjd')
 # Set the eclipse time to the time when the maximum magnitude was observed
 t_eclipse = time[np.argmax(y)]
+# t_eclipse = Time(524+58190.45, format='mjd')
 # Also set the magnitude value at primary mid-eclipse
 y_eclipse = y[np.argmax(y)]
 # The median of the y-values gives an estimate of the magnitude out of eclipse
 y_median = np.median(y)
 
 
-period = period*u.d
+period_d = period*u.d
 mintime = Time(min(time))  # Starting time of the lightcurve
 t_eclipse = Time(t_eclipse, format='mjd')  
-n_eclipses = int((max(time)-min(time))/period)
+n_eclipses = int((max(time)-min(time))/period_d)
 
 # Calculated eclipses
-primary_eclipses, secondary_eclipses = next_transits('', mintime, t_eclipse, period, 
-                                                     n_eclipses=n_eclipses, verbose=False)
+primary_eclipses, secondary_eclipses = next_transits('2061252975440642816', Time(60607, format='mjd'), t_eclipse, period_d, 
+                                                     n_eclipses=3, verbose=True)
 
-plt.figure()
-plt.scatter(thing['mjd'], thing['mag'], s=5)
-for x in primary_eclipses.value:
-    plt.axvline(x, ls='-', alpha=0.5)
-plt.xlim(58250, 58275)
-plt.ylim(14.55, 14.1)
-plt.show()
+# fig, ax = plt.subplots(figsize=(8,7))
+# ax.scatter(thing['mjd'][mask]/period % 2, thing['mag'][mask], s=5)
+# # ax.scatter(thing['mjd'][mask], thing['mag'][mask], s=5)
+# for x in primary_eclipses.value:
+#     ax.axvline(x/period % 2, ls='-', alpha=0.5)
+#     # ax.axvline(x, ls='-', alpha=0.5)
+# # ax.set_xlim(58730, 58750)
+# ax.invert_yaxis()
+
+# plt.show()
 
 #%%
 
@@ -391,23 +399,23 @@ from spectra_utils import spectrum
 import pandas as pd
 import os
 
-name = '4076568861833452160'
+name = '2200433413577635840'
 directory = 'data/FIES-M_spectra'
 files = os.listdir(directory)
-# spec = pd.read_csv(f'{directory}/{name}.txt', sep=' ')
-# wavelength = spec['wavelength']
-# flux = spec['flux']
+spec = pd.read_csv(f'{directory}/{name}.txt', sep=' ')
+wavelength = spec['wavelength']
+flux = spec['flux']
 
-xrange=[4810, 4910]
-cafos_spectra('data/cafos_spectra/spectra1D_dswfz_uniB_0200.txt', 'data/TFM_table.csv', xrange=[8143,8766],
-              lines_file='data/spectral_lines.txt', priority=[1], plot=True, dered=None)
-# lamost_spectra(f'{directory}/spec-55977-GAC_080N37_V1_sp03-241.fits', 'data/70_targets.csv', xrange=[3700,5100],
-#                lines_file='data/spectral_lines.txt', priority=[1, 2], plot=True)
-# lamost_spectra(f'{directory}/spec-56687-GAC080N37V1_sp03-241.fits', 'data/70_targets.csv', lines_file='data/spectral_lines.txt', plot=True)
-# lamost_spectra(f'{directory}/spec-56948-HD052351N362354B_sp14-213.fits', 'data/70_targets.csv', lines_file='data/spectral_lines.txt', plot=True)
-# spectrum(wavelength, flux, title=name+' FIES medium resolution', xrange=[6600,6615], #Av=5.7289376,
-#           units=['Angstrom','W nm$^{-1}$ m$^{-2}$'], lines_file='data/spectral_lines.txt', #r'$\frac{ergs}{(cm^2 A)} x 10^{-16}$'
-#           priority=[1,2,3,26], plot=True, color='k')
+# xrange=[4810, 4910]
+# cafos_spectra('data/cafos_spectra/spectra1D_dswfz_uniB_0200.txt', 'data/TFM_table.csv', #xrange=[6500,7400],
+#               lines_file='data/spectral_lines.txt', priority=['1'], plot=True, dered='fitz')
+# # lamost_spectra(f'data/lamost_spectra/spec-55977-GAC_080N37_V1_sp03-241.fits', 'data/TFM_table.csv', xrange=[3700,5100],
+# #                 lines_file='data/spectral_lines.txt', priority=[1, 2], plot=True)
+# # lamost_spectra(f'{directory}/spec-56687-GAC080N37V1_sp03-241.fits', 'data/70_targets.csv', lines_file='data/spectral_lines.txt', plot=True)
+# # lamost_spectra(f'{directory}/spec-56948-HD052351N362354B_sp14-213.fits', 'data/70_targets.csv', lines_file='data/spectral_lines.txt', plot=True)
+spectrum(wavelength, flux, title=name+' FIES medium resolution', #xrange=[5888,5890], #Av=0.71,
+          units=['Angstrom','W nm$^{-1}$ m$^{-2}$'], lines_file='data/spectral_lines.txt', #r'$\frac{ergs}{(cm^2 A)} x 10^{-16}$'
+          priority=['1'], plot=True, color='k')
 
 # fig, ax1 = plt.subplots(figsize=(12, 5))
 # directory = 'data/lamost_spectra'
@@ -534,8 +542,9 @@ from astropy.table import Table
     
 # t = Table.read("tables/starhorse2-result.vot", format="votable")
 CMD('data/starhorse2-result.vot', table_format="votable", s=10, density=True, 
-    cmap='magma', norm='log')
+    cmap='viridis', norm='log')
 ax=plt.gca()
+CMD('data/70_targets_extended.csv', s=100, color='r', marker='*', ax=ax)
 ax.set_xlabel("$(BP - RP)_{SH}$ [mag]", fontsize = 25)
 ax.set_ylabel("$M_{G,SH}$ [mag]", fontsize = 25)
 ax.tick_params(labelsize = 20)
@@ -563,4 +572,52 @@ su.spec_velocity(4861, spectrum['wavelength'][mask2], spectrum['flux'][mask2],
                  site='lapalma', RA=336.767, DEC=59.093, obs_time='2024-5-25')
 ax.set_xlim(left=-500, right=500)
 ax.set_ylim(top=0.4)
+plt.show()
+
+#%%
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from lightcurve_utils import bin_lightcurve
+from astropy.table import Table
+
+# lc = pd.read_csv('IRSA_ZTF_lightcurves_std/2175699216614191360.csv')
+lc = Table.read('IRSA_ZTF_lightcurves_std/2175699216614191360.csv', format='ascii.csv')
+period=4.769977
+
+t_observed = np.array(lc["bjd"][lc['filter'] == 'zr']/period %1)
+y_observed = np.array(lc['mag'][lc['filter'] == 'zr'])
+uncert = np.array(lc["magerr"][lc['filter'] == 'zr'])
+
+t_observed_zr, y_observed_zr, t_err, uncert = bin_lightcurve(t_observed, y_observed, yerr=uncert, 
+                                                        binsize=0.02, mode="average")
+
+t_observed = np.array(lc["bjd"][lc['filter'] == 'zg']/period %1)
+y_observed = np.array(lc['mag'][lc['filter'] == 'zg'])
+uncert = np.array(lc["magerr"][lc['filter'] == 'zg'])
+
+t_observed_zg, y_observed_zg, t_err, uncert = bin_lightcurve(t_observed, y_observed, yerr=uncert, 
+                                                        binsize=0.02, mode="average")
+
+t_observed = np.array(lc["bjd"][lc['filter'] == 'zi']/period %1)
+y_observed = np.array(lc['mag'][lc['filter'] == 'zi'])
+uncert = np.array(lc["magerr"][lc['filter'] == 'zi'])
+
+t_observed_zi, y_observed_zi, t_err, uncert = bin_lightcurve(t_observed, y_observed, yerr=uncert, 
+                                                        binsize=0.02, mode="average")
+
+
+# plt.scatter(lc['bjd'][lc['filter']=='zr']/4.770 %2, lc['mag'][lc['filter']=='zr']+1.7, c='r', s=1)
+# plt.scatter(lc['bjd'][lc['filter']=='zg']/4.770 %2, lc['mag'][lc['filter']=='zg'], c='g', s=1)
+# plt.scatter(lc['bjd'][lc['filter']=='zi']/4.770 %2, lc['mag'][lc['filter']=='zi']+2.55, c='gold', s=1)
+
+plt.figure(figsize=(8,5))
+plt.scatter(t_observed_zg, y_observed_zg, c='g', s=3)
+plt.scatter(t_observed_zr, y_observed_zr+1.8, c='r', s=3)
+plt.scatter(t_observed_zi, y_observed_zi+2.7, c='gold', s=3)
+plt.xlabel('Phase', fontsize=15)
+
+# plt.ylim(17, 16.6)
+plt.tight_layout()
 plt.show()

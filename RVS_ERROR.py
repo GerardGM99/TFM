@@ -45,9 +45,8 @@ for magi in mag_i:
     
 sources_list_silver=[6123873398383875456,5323384162646755712,2006088484204609408,2060841448854265216,
                      2061252975440642816,2166378312964576256,5311969857556479616,5524022735225482624,
-                     6228685649971375616]
-sources_list_gold=[5880159842877908352,1870955515858422656,5965503866703572480,2175699216614191360,
-                   460686648965862528,4076568861833452160,2206767944881247744]
+                     6228685649971375616, 5880159842877908352,1870955515858422656,5965503866703572480,
+                     2175699216614191360, 4076568861833452160,2206767944881247744]
    
 plt.figure(figsize=(8,8/1.5))
 plt.plot(mag_o, rv_err_o, color='darkviolet', label='Median')
@@ -68,16 +67,7 @@ for ide in sources_list_silver:
     if len(mask[mask==True])==1:
         silver_x.append(my_sources['grvs_mag'][mask])
         silver_y.append( my_sources['radial_velocity_error'][mask])
-plt.scatter(silver_x, silver_y, label='EB', s=220, facecolors='none', edgecolors='green', linewidth=4)    
-
-gold_x=[]
-gold_y=[]
-for ide in sources_list_gold:
-    mask = my_sources['SOURCE_ID']==ide
-    if len(mask[mask==True])==1:
-        gold_x.append(my_sources['grvs_mag'][mask])
-        gold_y.append( my_sources['radial_velocity_error'][mask])
-plt.scatter(gold_x, gold_y, label='Sin', s=220, facecolors='none', edgecolors='greenyellow', linewidth=4) 
+plt.scatter(silver_x, silver_y, label='EBS/Ell', s=220, facecolors='none', edgecolors='greenyellow', linewidth=4)    
 
 cb.ax.yaxis.set_ticks_position('left')
 cb.ax.tick_params('both', labelsize=14)
@@ -87,6 +77,8 @@ plt.tick_params('both', labelsize=15)
 #plt.ylim(top=20)
 plt.grid(zorder=0)
 plt.legend(loc='upper left', fontsize=12)
+# plt.show()
+plt.savefig('cool_plots/Thesis_figures/rvs_error.png', bbox_inches = "tight", format = "png")
 plt.show()
 plt.close()
 

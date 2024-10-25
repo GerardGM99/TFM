@@ -31,6 +31,7 @@ import astropy.units as u
 import matplotlib.ticker as ticker
 from specutils import Spectrum1D
 from specutils.manipulation import box_smooth, gaussian_smooth, trapezoid_smooth
+from astropy.convolution import convolve, Gaussian1DKernel
 from astropy.stats import sigma_clip
 import shutil
 
@@ -280,32 +281,12 @@ def all_low_spectra():
     directory = 'data/all_spectra'
     files = os.listdir(directory)
     
-    fig = plt.figure(constrained_layout=True, figsize=(12, 14))
-    gs = gridspec.GridSpec(1, 2, figure=fig, wspace=0.01, width_ratios=[1, 0.2])  # hspace=0 to remove separation between plots
-    gs01 = gs[1].subgridspec(13, 1, hspace=0)
-    
-    ax = fig.add_subplot(gs[0,0])
-    ax1 = fig.add_subplot(gs01[0,0])
-    ax2 = fig.add_subplot(gs01[1,0])
-    ax3 = fig.add_subplot(gs01[2,0])
-    ax4 = fig.add_subplot(gs01[3,0])
-    ax5 = fig.add_subplot(gs01[4,0])
-    ax6 = fig.add_subplot(gs01[5,0])
-    ax7 = fig.add_subplot(gs01[6,0])
-    ax8 = fig.add_subplot(gs01[7,0])
-    ax9 = fig.add_subplot(gs01[8,0])
-    ax10 = fig.add_subplot(gs01[9,0])
-    ax11 = fig.add_subplot(gs01[10,0])
-    ax12 = fig.add_subplot(gs01[11,0])
-    ax13 = fig.add_subplot(gs01[12,0])
-    
-    axes = [ax13, ax12, ax11, ax10, ax9, ax8, ax7, ax6, ax5, ax4, ax3, ax2]
-    #fig, ax = plt.subplots(figsize=(12, 14))
+    fig, ax = plt.subplots(figsize=(12, 14))
     
     show_lines(ax, 'data/spectral_lines.txt', xrange=[3900, 9000], priority=['1'])
-    ax.axvspan(6870, 6950, alpha=0.3, color='lightsteelblue')
-    ax.axvspan(7590, 7700, alpha=0.3, color='lightsteelblue')
-    ax.axvspan(7150, 7350, alpha=0.3, color='lightsteelblue')
+    plt.axvspan(6870, 6950, alpha=0.3, color='lightsteelblue')
+    plt.axvspan(7590, 7700, alpha=0.3, color='lightsteelblue')
+    plt.axvspan(7150, 7350, alpha=0.3, color='lightsteelblue')
     
     constant = 0
     triger = False
@@ -347,14 +328,19 @@ def all_low_spectra():
                 clipped_flux = sigma_clip(flu, sigma=10)
                 ax.plot(wl, clipped_flux, color='grey', alpha=0.4)
                 spec1 = Spectrum1D(spectral_axis=wl * u.AA, flux=clipped_flux * u.m / u.m)
-                spec1_gsmooth = gaussian_smooth(spec1, stddev=10)
-                clipped_flux = sigma_clip(spec1_gsmooth.flux, sigma = 5)
-                ax.plot(spec1_gsmooth.spectral_axis, clipped_flux, color='k')
+                fwhm_lambda = np.mean(wl) / 2000
+                sigma_lambda = fwhm_lambda / 2.355
+                pixel_scale = np.mean(np.diff(wl))  # Wavelength step size in Å
+                sigma_pixels = sigma_lambda / pixel_scale
+                gaussian_kernel = Gaussian1DKernel(sigma_pixels)
+                smoothed_flux = convolve(spec1.flux, gaussian_kernel)
+                # spec1_gsmooth = gaussian_smooth(spec1, stddev=10)
+                # clipped_flux = sigma_clip(spec1_gsmooth.flux, sigma = 5)
+                ax.plot(wl, smoothed_flux, color='k')
             else:
                 wl = data['wavelength'][(flux>=0)&(data['wavelength']>3800)]
                 flu = constant+flux[(flux>=0)&(data['wavelength']>3800)]/mean_flux
                 ax.plot(wl, flu, color='k')
-                axes[i].plot(wl, flu/np.mean(flu[(wl>6554)*(wl<6575)]), color='k')
             
             if source_name=='2164630463117114496' or source_name=='1870955515858422656' or source_name=='4299904519833646080':
                 ax.text(7200, mean_flux+constant+1.5, 'Gaia '+source_name, fontsize=15)
@@ -399,21 +385,6 @@ def all_low_spectra():
     ax.set_xlim(left=3750, right=8999)
     ax.tick_params(axis='both', labelsize=15)
     
-    for axi in axes:
-        axi.set_xlim(6554, 6575)
-        axi.set_ylim(0.95, 1.05)
-        axi.axvline(6562.8, ls='dashed', color='r')
-        # ax1.text(6563.5, 1.12, "H$\\alpha$", fontdict={'fontsize': 15})
-        axi.axes.get_yaxis().set_visible(False)
-        axi.axes.get_xaxis().set_visible(False)
-        
-    ax1.set_xlim(6554, 6575)
-    ax1.set_ylim(0.9, 1.1)
-    ax1.axvline(6562.8, ls='dashed', color='r')
-    # ax1.text(6563.5, 1.12, "H$\\alpha$", fontdict={'fontsize': 15})
-    ax1.axes.get_yaxis().set_visible(False)
-    ax1.axes.get_xaxis().set_visible(False)
-    ax13.axes.get_xaxis().set_visible(True)
             
 def lamost_lowres():
     
@@ -1247,8 +1218,12 @@ def grid_lightcurves(tiers, binsize=0, fold=False):
         # Initialize the subplot for the current object
         ax = axes[i]
         # ax.set_title(f'{object_folder} {all_labels[i]}')
-        ax.text(0.01, 0.01, f'{object_folder}{all_labels[i]}-P:{dictionary[object_folder]:.2f}d', transform=ax.transAxes, 
-                fontsize=12, fontweight='bold', va='bottom', ha='left')
+        if fold is True:
+            ax.text(0.01, 0.01, f'{object_folder}{all_labels[i]}-P:{dictionary[object_folder]:.2f}d', transform=ax.transAxes, 
+                    fontsize=12, fontweight='bold', va='bottom', ha='left')
+        else:
+            ax.text(0.01, 0.01, f'{object_folder}{all_labels[i]}', transform=ax.transAxes, 
+                    fontsize=14, fontweight='bold', va='bottom', ha='left')
         # ax.set_xlabel('Time')
         # ax.set_ylabel('Mag')
         
