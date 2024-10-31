@@ -26,7 +26,73 @@ from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation
 import matplotlib.gridspec as gridspec
 
-       
+def plotter(x, y, figsize=(10,8), plttype='plot', ax=None, xlabel='', ylabel='', title='',
+            xlim=None, ylim=None, xinvert=False, yinvert=False, legend=False, 
+            show=True, savepath=None, saveformat='png', **kwargs):
+    
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    
+    if xlim is not None:
+        xmask = (xlim[0]<=x) & (x<=xlim[1])
+        x = x[xmask]
+        y = y[xmask]
+        # ax.set_xlim(left=xlim[0], right=xlim[1])
+    if ylim is not None:
+        ymask = (ylim[0]<=y) & (y<=ylim[1])
+        y = y[ymask]
+        x = x[ymask]
+        # ax.set_ylim(bottom=ylim[0], top=ylim[1])
+           
+    if plttype == 'plot':
+        ax.plot(x, y, **kwargs)
+    elif plttype == 'scatter':
+        ax.scatter(x, y, **kwargs)
+    
+    ax.set_xlabel(xlabel, fontsize=16, fontfamily='serif')
+    ax.set_ylabel(ylabel, fontsize=16,  fontfamily='serif')
+    ax.set_title(title, fontsize=16,  fontfamily='serif')
+    ax.minorticks_on()
+    ax.tick_params(axis='both', which='both', labelsize=14, direction='in')
+
+    
+    if yinvert:
+        ax.invert_yaxis()
+    if xinvert:
+        ax.invert_xaxis()
+    
+    if legend:
+        ax.legend(fontsize=14)
+    
+    if savepath:
+        plt.savefig(savepath, bbox_inches="tight", format=saveformat)
+        
+    if show:
+        plt.tight_layout()
+        plt.show()
+        plt.close()
+
+def spec_file_convert(input_filename):
+    
+    data = fits.getdata(input_filename)
+    header = fits.getheader(input_filename)
+    
+    naxis1 = len(data)
+    crpix1 = header['crpix1'] * u.pixel
+    cunit1 = 1 * u.Unit(header['cunit1'])
+    crval1 = header['crval1'] * u.Unit(cunit1)
+    cdelt1 = header['cdelt1'] * u.Unit(cunit1) / u.pixel
+    wavelength = crval1 + ((np.arange(naxis1) + 1)*u.pixel - crpix1) * cdelt1
+    
+    df = pd.DataFrame({'wavelength':wavelength, 'flux':data})
+    
+    out = input_filename.split('.')[0]
+    df.to_csv(f'{out}.txt', sep=' ', index=False)
+
+
+#---------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------#
+        
 def Gaia_XP(id_list, out_path=None, plot=False, ax=None):
     '''
     Plota Gaia XP spectrum
@@ -210,7 +276,7 @@ def show_lines(ax, lines_file, xrange, priority):
                         ymax = 0.85
                 else:
                     ymax=0.85
-                ax.axvline(wl, ymax=ymax, ls='--', alpha=0.5, color=color)
+                ax.axvline(wl, ymax=ymax, ls='--', alpha=0.5, color=color, lw=1)
                 ax.text(wl, ymax+0.03, line, transform = trans, fontdict={'fontsize':11}, rotation = 90, ha='center')
                 prev_line_wl2 = prev_line_wl
                 prev_line_wl = wl
@@ -218,6 +284,34 @@ def show_lines(ax, lines_file, xrange, priority):
                 prev_ymax = ymax
 
 
+def spec_plot(input_filename, norm=True, ax=None, xlim=[3900,9100], ylim=None, lines_file=None):
+    
+    spec = pd.read_csv(input_filename, sep=' ')
+    wavelength = spec['wavelength']
+    flux = spec['flux']
+    if norm is True:
+        flux = flux/np.mean(flux)
+    name=os.path.basename(input_filename).split('.')[0].split('_')[0]
+    plotter(wavelength, flux, figsize=(8,4), plttype='plot', ax=ax, 
+            xlabel=r'Wavelength [$\AA$]', ylabel='Normalized Flux', title=name,
+            xlim=xlim, ylim=ylim, xinvert=False, yinvert=False, legend=False, 
+            show=False, savepath=None, saveformat='png', color='k')
+    
+    if ax is None:
+        ax=plt.gca()
+    # xrange = [min(wavelength), max(wavelength)]
+    if lines_file is not None:
+        show_lines(ax, lines_file, xrange=xlim, priority=[1,2,3])
+    if (xlim[0]<6950) & (xlim[1]>6870):
+        ax.axvspan(6870, 6950, alpha=0.3, color='lightsteelblue')
+    if (xlim[0]<7700) & (xlim[1]>7590):
+        ax.axvspan(7590, 7700, alpha=0.3, color='lightsteelblue')
+    if (xlim[0]<7350) & (xlim[1]>7150):
+        ax.axvspan(7150, 7350, alpha=0.3, color='lightsteelblue')
+    
+    plt.tight_layout()
+    plt.show()
+    
 
 def cafos_spectra(input_filename, asciicords, xrange=[3500, 9501], calibration='flux', dered=None, 
                   lines_file=None, priority=['1'], plot=True, outdir=None, ax=None):
@@ -302,6 +396,7 @@ def cafos_spectra(input_filename, asciicords, xrange=[3500, 9501], calibration='
         cdelt1 = header['cdelt1'] * u.Unit(cunit1) / u.pixel
         wavelength = crval1 + ((np.arange(naxis1) + 1)*u.pixel - crpix1) * cdelt1
 
+   
         ax.plot(wavelength.to(u.Angstrom), data[0], color='k')
         ax.set_title(source_name+', NO standard flux calibrated!', fontsize=16, weight='bold')
     
@@ -628,7 +723,7 @@ def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250], dered=None, 
 #---------------------------------------------------------------------------------------------------------------#
 
 def spec_velocity(rest_wl, wavelengths, fluxs, site=None, RA=None, DEC=None, obs_time=None, 
-                  ax=None, legend=True, line='line', **kwargs):
+                  ax=None, legend=True, line='line', xlim=None, ylim=None, **kwargs):
     
     if ax is None:
         fig, ax = plt.subplots(figsize=(7, 5))
@@ -639,14 +734,25 @@ def spec_velocity(rest_wl, wavelengths, fluxs, site=None, RA=None, DEC=None, obs
         heliocorr = sc.radial_velocity_correction('heliocentric', obstime=Time(obs_time), 
                                                   location=location)  
         heliocorr = heliocorr.to(u.km/u.s).value
-        print(heliocorr)
+        # print(heliocorr)
     else:
         heliocorr = 0
     
     c = 299792.458 # km/s
-    mean_flux = np.mean(fluxs)
     velocity = heliocorr + c*(wavelengths-rest_wl)/wavelengths
-    
+    # mean_flux = np.mean(fluxs)
+    if xlim is not None:
+        xmask = (xlim[0]<=velocity) & (velocity<=xlim[1])
+        velocity = velocity[xmask]
+        fluxs = fluxs[xmask]
+        # ax.set_xlim(left=xlim[0], right=xlim[1])
+    if ylim is not None:
+        ymask = (ylim[0]<=fluxs) & (fluxs<=ylim[1])
+        fluxs = fluxs[ymask]
+        velocity = velocity[ymask]
+        # ax.set_ylim(bottom=ylim[0], top=ylim[1])
+    flux_continum = fluxs[abs(velocity)>0.6*xlim[1]]
+    mean_flux = np.mean(flux_continum)
     if line=='line':
         ax.plot(velocity, fluxs/mean_flux, **kwargs)
     elif line=='scatter':
@@ -654,14 +760,15 @@ def spec_velocity(rest_wl, wavelengths, fluxs, site=None, RA=None, DEC=None, obs
     ax.set_xlabel('Velocity [km/s]', fontsize=16)
     ax.set_ylabel('Normilized Flux', fontsize=16)
     # ax.set_xticks(np.arange(6200, 6900, 50))
-    # ax.set_xlim(left=6200, right=6901)
     ax.tick_params(axis='both', labelsize=16)
     
     if legend:
         ax.legend(fontsize=12)
         
 
-def clasification_grid(wavelengths, fluxes, Obj_name, xrange=[5, 5], site=None, RA=None, DEC=None, obs_time=None):
+def classification_grid(wavelengths, fluxes, Obj_name, #xrange=[5, 5], 
+                        site=None, RA=None, DEC=None, obs_time=None,
+                        savepath=None):
        
     classification_lines = {'H':[4861, 6563], 
                             'HeI':[4388, 4922, 5016],
@@ -669,29 +776,38 @@ def clasification_grid(wavelengths, fluxes, Obj_name, xrange=[5, 5], site=None, 
                             'HeII':[4200, 4542, 4686],
                             'CaII (K&H)':[3933.663, 3968.468], 
                             'CaII (triplet)':[8498.03, 8542.09, 8662.14],
-                            'NaI':[5860, 5890, 5896], 
+                            'NaI':[5890, 5896], #5860
                             'MgII':[4481], 
                             'FeI':[3860, 5167], #8688
                             'FeII':[4923.94, 5018.44]}
     
-    fig = plt.figure(constrained_layout=True, figsize=(14, 16))
-    gs = gridspec.GridSpec(4, 2, figure=fig, wspace=0.15, hspace=0.3)
+    
+    fig = plt.figure(constrained_layout=True, figsize=(16, 16))
+    gs = gridspec.GridSpec(3, 3, figure=fig, wspace=0.25, hspace=0.25)
     ax0 = fig.add_subplot(gs[0,0])
     ax1 = fig.add_subplot(gs[0,1])
-    ax2 = fig.add_subplot(gs[1,0])
-    ax3 = fig.add_subplot(gs[1,1])
-    ax4 = fig.add_subplot(gs[2,0])
-    ax5 = fig.add_subplot(gs[2,1])
-    ax6 = fig.add_subplot(gs[3,0])
-    ax7 = fig.add_subplot(gs[3,1])
+    ax2 = fig.add_subplot(gs[0,2])
+    ax3 = fig.add_subplot(gs[1,0])
+    ax4 = fig.add_subplot(gs[1,1])
+    ax5 = fig.add_subplot(gs[1,2])
+    ax6 = fig.add_subplot(gs[2,0])
+    ax7 = fig.add_subplot(gs[2,1])
     axes=[ax0, ax1, ax2, ax3, ax4, ax5, ax6, ax7]
     transitions = [['H'], ['NaI'], ['HeI'], ['HeII'], ['CaII (K&H)'], ['CaII (triplet)'], ['FeI'], ['FeII', 'MgII']] #, 'HeI(weak)'
+    vel_range = {'H':[-500, 500], 
+                 'NaI':[-200, 200],
+                 'HeI':[-200, 200],
+                 'HeII':[-200, 200],
+                 'CaII (K&H)':[-200, 200], 
+                 'CaII (triplet)':[-200, 200],
+                 'FeI':[-200, 200], #8688
+                 'FeII&MagII':[-200, 200]}
     
-    for ax, transition in zip(axes, transitions):
+    for ax, transition, key_xrange in zip(axes, transitions, vel_range.keys()):
         for sub in transition:
             rest_wls = classification_lines.get(sub)
             for rest_wl in rest_wls:
-                mask = (wavelengths>rest_wl-xrange[0]) & (wavelengths<rest_wl+xrange[1])
+                # mask = (wavelengths>rest_wl-xrange[0]) & (wavelengths<rest_wl+xrange[1])
                 label=fr'{rest_wl} $\AA$'
                 if transition == ['FeII', 'MgII']:
                     sub = 'FeII and MgII'
@@ -699,27 +815,52 @@ def clasification_grid(wavelengths, fluxes, Obj_name, xrange=[5, 5], site=None, 
                         label = fr'MgII {rest_wl} $\AA$'
                     else:
                         label = fr'FeII {rest_wl} $\AA$'
-                spec_velocity(rest_wl, wavelengths[mask], fluxes[mask], site=site, RA=RA, DEC=DEC, obs_time=obs_time, 
-                              ax=ax, legend=True, line='line', label=label)
+                xrange = vel_range.get(key_xrange)
+                spec_velocity(rest_wl, wavelengths, fluxes, site=site, RA=RA, DEC=DEC, obs_time=obs_time, 
+                              ax=ax, legend=True, line='line', label=label, xlim=xrange)
                 
         ax.tick_params(axis='both', direction='in')
         ax.set_ylabel('')
         ax.set_xlabel('')
-        ax.set_title(sub)
-        # ax.set_xlim(left=xrange[0], right=xrange[1])
-        
+        ax.set_title(sub, fontsize=16)        
     
     fig.suptitle(Obj_name, fontsize=16, weight='bold', y=0.91)
-    # fig.suptitle('Gaia '+name, fontsize=16, weight='bold')
-    fig.text(0.5, 0.09, r'Velocity [km/s]', ha='center', va='center', fontsize=16)
+    fig.text(0.5, 0.09, r'Velocity [km/s]', ha='center', va='center', fontsize=18)
     fig.text(0.07, 0.5, r'Normilized Flux', ha='center', 
-             va='center', rotation='vertical', fontsize=16)
-        
-    plt.tight_layout()
+             va='center', rotation='vertical', fontsize=18)
+    
+    plt.tight_layout()    
+    if savepath is not None:
+        plt.savefig(f'{savepath}/FIES_{Obj_name}.png', bbox_inches = "tight", format = "png")
+    
     plt.show()
-    # plt.savefig(f'{savepath}/FIES_{name}.png', bbox_inches = "tight", format = "png")
     plt.close()
-
+    
+def fits2grid(input_filename, site=None, xlim=None, lines_file=None):
+    
+    spec_file_convert(input_filename)
+    
+    header = fits.getheader(input_filename)
+    RA=header['RA']
+    DEC=header['DEC']
+    obs_time=header['DATE']
+    obj_name=header['OBJECT']
+    
+    path=os.path.dirname(input_filename)
+    file = os.path.basename(input_filename).split('.')[0] + '.txt'
+    spec_plot(os.path.join(path, file), xlim=xlim, lines_file=lines_file, norm=False)
+    spectrum = pd.read_csv(os.path.join(path, file), sep=' ')
+    wavelengths = spectrum['wavelength']
+    fluxes = spectrum['flux']
+    
+    plotdir = os.path.join(path,'plots')
+    if not os.path.isdir(plotdir):
+        os.makedirs(plotdir)
+    classification_grid(wavelengths, fluxes, obj_name+os.path.basename(input_filename), 
+                        site=site, RA=RA, DEC=DEC, obs_time=obs_time,
+                        savepath=plotdir)
+    
+    
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#
 
@@ -934,7 +1075,7 @@ def model_spectral_lines(wl_range, lines, line_strenght, R, T, SNR, pix_size=Non
 def rv_crosscorr(dx, dy, tx, ty, rvmin, rvmax, step, skipedge=0, plot=True):
     '''
     Calculates the radial velocity of a shifted line cross-correlating with a
-    template, using the pyasl module function puasl.crosscorrRV().
+    template, using the pyasl module function pyasl.crosscorrRV().
 
     Parameters
     ----------

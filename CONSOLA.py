@@ -182,6 +182,22 @@ _,_,_,_ = su.model_spectral_lines([6500, 6650], {'Ha':6563}, [0.5], 5000, 6000, 
 # _,_,_,_ = su.model_spectral_lines([6560, 6570], {'Ha':6563}, [0.8], 25000, 7000, 20, cont=True, rv=[-20, 20])
 #su.rv_crosscorr_err(n_boot, wl_range, n_points, lines, line_strenght, R, T, SNR)
 
+
+#%%
+
+import pandas as pd
+import spectra_utils as su
+
+t = pd.read_csv('data/FIES-M_spectra/FIHj280106_step011_merge.txt', sep=' ')
+wavelength = t['wavelength']
+flux = t['flux']
+
+# su.classification_grid(wavelength, flux, '', site='lapalma', RA=9.27635, DEC=63.70699, obs_time='2024-10-28')
+su.spec_plot('data/FIES-M_spectra/at2024znz_pynot.txt')
+su.spec_plot('data/FIES-M_spectra/at2024wsg_pynot.txt')
+su.spec_plot('data/FIES-M_spectra/at2024wsg_pynot_obs2.txt')
+su.spec_plot('data/FIES-M_spectra/at2024yrr_pynot_clean.txt')
+
 #%%
 
 import coord_utils as cu

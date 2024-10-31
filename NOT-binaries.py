@@ -10,9 +10,9 @@ from datetime import datetime, timedelta
 
 # Parameters for the binary systems
 binaries = [
-    {"name": "2006088484204609408", "period": 2.5960645*24, "t0": -16.87055556, "amplitude": 100},
-    {"name": "2175699216614191360", "period": 4.769977*24, "t0": -85.41666667, "amplitude": 50},
-    {"name": "2061252975440642816", "period": 2.139183*24, "t0":-29.39916667, "amplitude": 50}
+    {"name": "2006088484204609408", "period": 2.5960645*24, "t0": -16.87055556, "amplitude": 1},
+    {"name": "2175699216614191360", "period": 4.769977*24, "t0": -85.41666667, "amplitude": 1},
+    {"name": "2061252975440642816", "period": 2.139183*24, "t0":-29.39916667, "amplitude": 1}
 ]
 
 # Observation times in hours since October 28, 5pm
