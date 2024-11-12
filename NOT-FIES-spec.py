@@ -61,44 +61,55 @@ for file in files29:
         
         
 #%%ALFOSC
+import pandas as pd
+import spectra_utils as su
 
 import matplotlib.pyplot as plt
 from astropy.io import fits
 import os
-import pandas as pd
-import spectra_utils as su
 
-path = '203/2024-10-29/alfosc/not_alfosc_L/Science/'
-file = 'spec1d_ALHj290141-at2024znz_ALFOSC_20241030T062521.487.fits'
-hdu = fits.open(os.path.join(path, file))
-
-for i in range(1,5):
-    head = hdu[i].header
-    
-    data = hdu[i].data
-    
-    wavelength = data['OPT_WAVE']   # Optimal wavelength
-    # flux = data['OPT_COUNTS']       # Optimal flux counts
-    # flux_error = data['OPT_COUNTS_SIG']
-    flux = data['OPT_FLAM']       # Optimal flux 
-    flux_error = data['OPT_FLAM_SIG']
-    mask = (wavelength>3800)&(wavelength<9500)
-    
-    # Plot the spectrum with error bars
-    plt.figure(figsize=(10, 5))
-    plt.plot(wavelength[mask], flux[mask], color='blue', lw=1, label='Flux')
-    plt.xlabel('Wavelength (Å)', fontsize=16, fontfamily='serif')
-    plt.ylabel(r'Flux (1e-17 erg/s/$cm^2$/Å)', fontsize=16, fontfamily='serif')
-    name = file.split('_')[1].split('-')[1]
-    plt.title(f'1D Spectrum for {name}, i: {i}', fontsize=18, fontfamily='serif', weight='bold')
-    plt.minorticks_on()
-    plt.tick_params(which='both', labelsize=15, direction='in')
-    plt.minorticks_on()
-    plt.ylim(bottom=-4)
-    plt.tight_layout()
-    plt.show()
-    
-    # if i==4:
-    #     df = pd.DataFrame({'wavelength':wavelength, 'flux':flux})
-    #     out = f'data/FIES-M_spectra/{name}'
-    #     df.to_csv(f'{out}.txt', sep=' ', index=False)
+path = '203/ALFOSC/'
+files = os.listdir(path)
+# file = 'spec1d_ALHj290141-at2024znz_ALFOSC_20241030T062521.487.fits'
+index = {'2061252975440642816':2, '2175699216614191360':1,
+         '2006088484204609408':1, '527155253604491392':1, 
+         '428103652673049728':3, '473575777103322496':2,
+         '526939882463713152':1, '187219239343050880':1, 
+         '512721444765993472':1, '3369399099232812160':2}
+for file in files:
+    if (file != 'transients_OR_standard') and (file.endswith('.fits') is True):
+        hdu = fits.open(os.path.join(path, file))
+        
+        for i in range(1,len(hdu)-1):
+            head = hdu[i].header
+            
+            data = hdu[i].data
+            
+            wavelength = data['OPT_WAVE']   
+            # flux = data['OPT_COUNTS']       
+            # flux_error = data['OPT_COUNTS_SIG']
+            flux = data['OPT_FLAM']       
+            flux_error = data['OPT_FLAM_SIG']
+            mask = (wavelength>3800)&(wavelength<9500)
+            
+            # YOUR FAVOURITE PLOTTING CODE HERE
+            
+            # # Plot
+            # plt.figure(figsize=(10, 5))
+            # plt.plot(wavelength[mask], flux[mask], color='blue', lw=1, label='Flux')
+            # plt.xlabel('Wavelength (Å)', fontsize=16, fontfamily='serif')
+            # plt.ylabel(r'Flux (1e-17 erg/s/$cm^2$/Å)', fontsize=16, fontfamily='serif')
+            name = file.split('_')[1].split('-')[1]
+            # plt.title(f'1D Spectrum for {name}, i: {i}', fontsize=18, fontfamily='serif', weight='bold')
+            # plt.minorticks_on()
+            # plt.tick_params(which='both', labelsize=15, direction='in')
+            # plt.minorticks_on()
+            # plt.ylim(bottom=-4)
+            # plt.tight_layout()
+            # plt.show()
+            
+            extra = file.split('_')[3].split('.')[1]
+            if i==index[name]:
+                df = pd.DataFrame({'wavelength':wavelength, 'flux':flux})
+                out = f'{path}/{name}_{extra}'
+                df.to_csv(f'{out}.txt', sep=' ', index=False)
