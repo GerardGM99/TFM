@@ -10,7 +10,7 @@ import pandas as pd
 import os
 from astropy.io import fits
 
-path28 = '203/2024-10-28/fies/reduced/'
+path28 = '203/FIES/28/'
 files28 = os.listdir(path28)
 plotdir = os.path.join(path28,'plots')
 if not os.path.isdir(plotdir):
@@ -30,12 +30,11 @@ for file in files28:
         fluxes = spectrum['flux']
 
 
-        su.classification_grid(wavelengths, fluxes, obj_name+os.path.basename(file.replace('fits', 'txt')), 
+        su.classification_grid(wavelengths, fluxes, obj_name+os.path.basename(file.replace('fits', 'txt')), bin_size=5,
                                site='lapalma', RA=RA, DEC=DEC, obs_time=obs_time,
                                savepath=plotdir)
 
-
-path29 = '203/2024-10-29/fies/reduced/'
+path29 = '203/FIES/29/'
 files29 = os.listdir(path29)
 plotdir = os.path.join(path29,'plots')
 if not os.path.isdir(plotdir):
@@ -55,10 +54,9 @@ for file in files29:
         fluxes = spectrum['flux']
 
 
-        su.classification_grid(wavelengths, fluxes, obj_name+os.path.basename(file.replace('fits', 'txt')), 
+        su.classification_grid(wavelengths, fluxes, obj_name+os.path.basename(file.replace('fits', 'txt')), bin_size=5,
                                site='lapalma', RA=RA, DEC=DEC, obs_time=obs_time,
                                savepath=plotdir)
-        
         
 #%%ALFOSC
 import pandas as pd
@@ -113,3 +111,34 @@ for file in files:
                 df = pd.DataFrame({'wavelength':wavelength, 'flux':flux})
                 out = f'{path}/{name}_{extra}'
                 df.to_csv(f'{out}.txt', sep=' ', index=False)
+                
+                
+#%%
+import matplotlib
+matplotlib.use('Qt5Agg')
+import spectra_utils as su
+import os
+import pandas as pd
+
+path = '203/ALFOSC/'
+files = os.listdir(path)
+plotdir = os.path.join(path,'plots')
+if not os.path.isdir(plotdir):
+    os.makedirs(plotdir)
+for file in files:
+    if file.endswith('.txt'):
+        su.spec_plot(os.path.join(path,file), norm=True, ax=None, ylim=None, lines_file='data/spectral_lines.txt', 
+                      plot=True, xmin=3850, xmax=None)
+        out_name = os.path.join(plotdir, file.split('.')[0])
+        # plt.savefig(f'{out_name}.png', bbox_inches = "tight", format = "png")
+        # plt.close()
+        break
+        
+        # spectrum = pd.read_csv(os.path.join(path, file), sep=' ')
+        
+        # wavelengths = spectrum['wavelength']
+        # fluxes = spectrum['flux']
+        # su.classification_grid(wavelengths, fluxes, file.split('.')[0], velocity_range=2, #bin_size=1,
+        #                        savepath=plotdir)
+
+

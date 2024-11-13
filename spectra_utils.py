@@ -26,18 +26,38 @@ from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation
 import matplotlib.gridspec as gridspec
 
+def bin_spectrum(wavelengths, fluxes, bin_size):
+    """Bin the spectrum by averaging over specified bin_size."""
+    # Convert to NumPy arrays if inputs are pandas Series
+    wavelengths = np.array(wavelengths)
+    fluxes = np.array(fluxes)
+    
+    # Calculate the number of bins
+    num_bins = len(wavelengths) // bin_size
+    
+    # Reshape and average within bins
+    binned_wavelengths = np.mean(wavelengths[:num_bins * bin_size].reshape(-1, bin_size), axis=1)
+    binned_fluxes = np.mean(fluxes[:num_bins * bin_size].reshape(-1, bin_size), axis=1)
+    
+    return binned_wavelengths, binned_fluxes
+
+
 def plotter(x, y, figsize=(10,8), plttype='plot', ax=None, xlabel='', ylabel='', title='',
-            xlim=None, ylim=None, xinvert=False, yinvert=False, legend=False, 
+            xmin=None, xmax=None, ylim=None, xinvert=False, yinvert=False, legend=False, 
             show=True, savepath=None, saveformat='png', **kwargs):
     
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize)
     
-    if xlim is not None:
-        xmask = (xlim[0]<=x) & (x<=xlim[1])
-        x = x[xmask]
-        y = y[xmask]
+    if xmin is not None:
+        xminmask = (xmin<=x)
+        x = x[xminmask]
+        y = y[xminmask]
         # ax.set_xlim(left=xlim[0], right=xlim[1])
+    if xmax is not None:
+        xmaxmask = (x<=xmax)
+        x = x[xmaxmask]
+        y = y[xmaxmask]
     if ylim is not None:
         ymask = (ylim[0]<=y) & (y<=ylim[1])
         y = y[ymask]
@@ -249,14 +269,14 @@ def show_lines(ax, lines_file, xrange, priority):
     None.
 
     '''
-    cmap = plt.get_cmap('rainbow')
+    # cmap = plt.get_cmap('rainbow')
     if lines_file is not None:
         trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
         lines = Table.read(lines_file, format='ascii')
         lines_sorted = lines[np.argsort(lines['wavelength'])]
         prev_line_wl = None
         prev_line_wl2 = None
-        prev_ymax = 0.85
+        prev_ymax = 0.83+0.08
         # prev_ymax2 = 0.75
         delta_perce2 = 1
         for line, wl, prio, color in zip(lines_sorted['line'], lines_sorted['wavelength'], lines_sorted['prio'], lines_sorted['color']):
@@ -268,23 +288,23 @@ def show_lines(ax, lines_file, xrange, priority):
                     if prev_line_wl2 is not None:
                         delta_wl2 = wl - prev_line_wl2
                         delta_perce2 = delta_wl2 / (xrange[1] - xrange[0])
-                    if (delta_perce < 0.05) & (prev_ymax == 0.85) & (delta_perce2 > 0.02):
-                        ymax = 0.76
-                    elif (delta_perce < 0.05) & (prev_ymax == 0.85) & (delta_perce2 < 0.02):
-                        ymax = 0.68
+                    if (delta_perce < 0.05) & (prev_ymax == 0.83+0.08) & (delta_perce2 > 0.02):
+                        ymax = 0.76+0.08
+                    elif (delta_perce < 0.05) & (prev_ymax == 0.83+0.08) & (delta_perce2 < 0.02):
+                        ymax = 0.72+0.08
                     else:
-                        ymax = 0.85
+                        ymax = 0.83+0.08
                 else:
-                    ymax=0.85
+                    ymax=0.83+0.08
                 ax.axvline(wl, ymax=ymax, ls='--', alpha=0.5, color=color, lw=1)
-                ax.text(wl, ymax+0.03, line, transform = trans, fontdict={'fontsize':11}, rotation = 90, ha='center')
+                ax.text(wl, ymax+0.01, line, transform = trans, fontdict={'fontsize':11}, rotation = 90, ha='center')
                 prev_line_wl2 = prev_line_wl
                 prev_line_wl = wl
                 # prev_ymax2 = prev_ymax
                 prev_ymax = ymax
 
 
-def spec_plot(input_filename, norm=True, ax=None, xlim=[3900,9100], ylim=None, lines_file=None):
+def spec_plot(input_filename, norm=True, ax=None, xmin=3900, xmax=9100, ylim=None, lines_file=None, plot=True):
     
     spec = pd.read_csv(input_filename, sep=' ')
     wavelength = spec['wavelength']
@@ -292,25 +312,32 @@ def spec_plot(input_filename, norm=True, ax=None, xlim=[3900,9100], ylim=None, l
     if norm is True:
         flux = flux/np.mean(flux)
     name=os.path.basename(input_filename).split('.')[0].split('_')[0]
-    plotter(wavelength, flux, figsize=(8,4), plttype='plot', ax=ax, 
+    plotter(wavelength, flux, figsize=(14,6), plttype='plot', ax=ax, 
             xlabel=r'Wavelength [$\AA$]', ylabel='Normalized Flux', title=name,
-            xlim=xlim, ylim=ylim, xinvert=False, yinvert=False, legend=False, 
+            xmin=xmin, xmax=xmax, ylim=ylim, xinvert=False, yinvert=False, legend=False, 
             show=False, savepath=None, saveformat='png', color='k')
     
+    if xmin is None:
+        xmin = np.min(wavelength)
+    if xmax is None:
+        xmax = np.max(wavelength)
+        
     if ax is None:
         ax=plt.gca()
     # xrange = [min(wavelength), max(wavelength)]
     if lines_file is not None:
-        show_lines(ax, lines_file, xrange=xlim, priority=[1,2,3])
-    if (xlim[0]<6950) & (xlim[1]>6870):
+        show_lines(ax, lines_file, xrange=[xmin, xmax], priority=['1','2'])
+    
+    if (xmin<6950) & (xmax>6870):
         ax.axvspan(6870, 6950, alpha=0.3, color='lightsteelblue')
-    if (xlim[0]<7700) & (xlim[1]>7590):
+    if (xmin<7700) & (xmax>7590):
         ax.axvspan(7590, 7700, alpha=0.3, color='lightsteelblue')
-    if (xlim[0]<7350) & (xlim[1]>7150):
+    if (xmin<7350) & (xmax>7150):
         ax.axvspan(7150, 7350, alpha=0.3, color='lightsteelblue')
     
-    plt.tight_layout()
-    plt.show()
+    if plot:
+        plt.tight_layout()
+        plt.show()
     
 
 def cafos_spectra(input_filename, asciicords, xrange=[3500, 9501], calibration='flux', dered=None, 
@@ -755,6 +782,8 @@ def spec_velocity(rest_wl, wavelengths, fluxs, site=None, RA=None, DEC=None, obs
     mean_flux = np.mean(flux_continum)
     if line=='line':
         ax.plot(velocity, fluxs/mean_flux, **kwargs)
+    elif line=='bin':
+        ax.step(velocity, fluxs/mean_flux, where='mid', **kwargs)
     elif line=='scatter':
         ax.scatter(velocity, fluxs/mean_flux, **kwargs)
     ax.set_xlabel('Velocity [km/s]', fontsize=16)
@@ -763,27 +792,29 @@ def spec_velocity(rest_wl, wavelengths, fluxs, site=None, RA=None, DEC=None, obs
     ax.tick_params(axis='both', labelsize=16)
     
     if legend:
-        ax.legend(fontsize=12)
+        ax.legend(fontsize=14, frameon=False, fancybox=False)
         
 
-def classification_grid(wavelengths, fluxes, Obj_name, #xrange=[5, 5], 
+def classification_grid(wavelengths, fluxes, Obj_name, bin_size=None, velocity_range=1, #xrange=[5, 5], 
                         site=None, RA=None, DEC=None, obs_time=None,
                         savepath=None):
        
     classification_lines = {'H':[4861, 6563], 
-                            'HeI':[4388, 4922, 5016],
-                            'HeI(weak)':[4144, 4471, 5876, 6678, 7065],
-                            'HeII':[4200, 4542, 4686],
-                            'CaII (K&H)':[3933.663, 3968.468], 
-                            'CaII (triplet)':[8498.03, 8542.09, 8662.14],
-                            'NaI':[5890, 5896], #5860
-                            'MgII':[4481], 
-                            'FeI':[3860, 5167], #8688
-                            'FeII':[4923.94, 5018.44]}
+                            'He I':[4388, 4922, 5016],
+                            'He I(weak)':[4144, 4471, 5876, 6678, 7065],
+                            'He II':[4200, 4542, 4686],
+                            'Ca II (K&H)':[3933.663, 3968.468], 
+                            'Ca II (triplet)':[8498.03, 8542.09, 8662.14],
+                            'Na I':[5890, 5896], #5860
+                            'Mg II':[4481.15], 
+                            'Fe I':[3860, 5167], #8688
+                            'Fe II':[4233, 4924, 5016],
+                            'Si III':[4552, 4568, 4575], #OB, early to mid B
+                            '[O I]':[5577.34, 6300.304, 6363.776]} #Herbig Ae/Be, B[e], Novae
     
     
-    fig = plt.figure(constrained_layout=True, figsize=(16, 16))
-    gs = gridspec.GridSpec(3, 3, figure=fig, wspace=0.25, hspace=0.25)
+    fig = plt.figure(constrained_layout=True, figsize=(18, 16))
+    gs = gridspec.GridSpec(3, 3, figure=fig, wspace=0.20, hspace=0.20)
     ax0 = fig.add_subplot(gs[0,0])
     ax1 = fig.add_subplot(gs[0,1])
     ax2 = fig.add_subplot(gs[0,2])
@@ -792,37 +823,64 @@ def classification_grid(wavelengths, fluxes, Obj_name, #xrange=[5, 5],
     ax5 = fig.add_subplot(gs[1,2])
     ax6 = fig.add_subplot(gs[2,0])
     ax7 = fig.add_subplot(gs[2,1])
-    axes=[ax0, ax1, ax2, ax3, ax4, ax5, ax6, ax7]
-    transitions = [['H'], ['NaI'], ['HeI'], ['HeII'], ['CaII (K&H)'], ['CaII (triplet)'], ['FeI'], ['FeII', 'MgII']] #, 'HeI(weak)'
-    vel_range = {'H':[-500, 500], 
-                 'NaI':[-200, 200],
-                 'HeI':[-200, 200],
-                 'HeII':[-200, 200],
-                 'CaII (K&H)':[-200, 200], 
-                 'CaII (triplet)':[-200, 200],
-                 'FeI':[-200, 200], #8688
-                 'FeII&MagII':[-200, 200]}
+    ax8 = fig.add_subplot(gs[2,2])
+    axes=[ax0, ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8]
+    transitions = [['H'], ['He I'], ['He II'], ['Na I'], ['Ca II (K&H)'], ['Ca II (triplet)'], ['Fe II', 'Mg II'], ['Si III'], ['[O I]']] #, 'HeI(weak)'
+    
+    if velocity_range==1:
+        vel_range = {'H':[-700, 700],
+                     'He I':[-400, 400],
+                     'He II':[-200, 200], 
+                     'Na I':[-200, 200],
+                     'Ca II (K&H)':[-200, 200], 
+                     'Ca II (triplet)':[-200, 200],
+                     'Fe II&Mag II':[-200, 200],
+                     'Si III':[-200, 200],
+                     '[O I]':[-200, 200]}
+    else:
+        vel_range = {'H':[-1000, 1000],
+                     'He I':[-1000, 1000],
+                     'He II':[-1000, 1000], 
+                     'Na I':[-1000, 1000],
+                     'Ca II (K&H)':[-1000, 1000], 
+                     'Ca II (triplet)':[-1000, 1000],
+                     'Fe II&Mag II':[-600, 600],
+                     'Si III':[-500, 500],
+                     '[O I]':[-500, 500]}
+    
+    color_palette = ['#004E64', '#00A5CF', '#9600FF', '#70E000', '#7AE582']
+    # color_palette = ['#00B8FF', '#4900FF', '#9600FF', '#FF00C1']
     
     for ax, transition, key_xrange in zip(axes, transitions, vel_range.keys()):
         for sub in transition:
             rest_wls = classification_lines.get(sub)
-            for rest_wl in rest_wls:
+            for idx, rest_wl in enumerate(rest_wls):
                 # mask = (wavelengths>rest_wl-xrange[0]) & (wavelengths<rest_wl+xrange[1])
                 label=fr'{rest_wl} $\AA$'
-                if transition == ['FeII', 'MgII']:
-                    sub = 'FeII and MgII'
-                    if rest_wl == 4481:
+                if transition == ['Fe II', 'Mg II']:
+                    sub = 'Fe II and Mg II'
+                    if rest_wl == 4481.15:
                         label = fr'MgII {rest_wl} $\AA$'
+                        color = '#70E000'
                     else:
                         label = fr'FeII {rest_wl} $\AA$'
+                        color = color_palette[idx % len(color_palette)]
+                else:
+                    color = color_palette[idx % len(color_palette)]
                 xrange = vel_range.get(key_xrange)
-                spec_velocity(rest_wl, wavelengths, fluxes, site=site, RA=RA, DEC=DEC, obs_time=obs_time, 
-                              ax=ax, legend=True, line='line', label=label, xlim=xrange)
+                if bin_size is not None:
+                    # bin_size = 10
+                    binned_wavelengths, binned_fluxes = bin_spectrum(wavelengths, fluxes, bin_size)
+                    spec_velocity(rest_wl, binned_wavelengths, binned_fluxes, site=site, RA=RA, DEC=DEC, obs_time=obs_time, 
+                                  ax=ax, legend=True, line='bin', label=label, xlim=xrange, color=color)
+                else:
+                    spec_velocity(rest_wl, wavelengths, fluxes, site=site, RA=RA, DEC=DEC, obs_time=obs_time, 
+                                  ax=ax, legend=True, line='line', label=label, xlim=xrange, color=color)
                 
         ax.tick_params(axis='both', direction='in')
         ax.set_ylabel('')
         ax.set_xlabel('')
-        ax.set_title(sub, fontsize=16)        
+        ax.set_title(sub, fontsize=16, weight='bold')        
     
     fig.suptitle(Obj_name, fontsize=16, weight='bold', y=0.91)
     fig.text(0.5, 0.09, r'Velocity [km/s]', ha='center', va='center', fontsize=18)
@@ -831,7 +889,7 @@ def classification_grid(wavelengths, fluxes, Obj_name, #xrange=[5, 5],
     
     plt.tight_layout()    
     if savepath is not None:
-        plt.savefig(f'{savepath}/FIES_{Obj_name}.png', bbox_inches = "tight", format = "png")
+        plt.savefig(f'{savepath}/specgrid_{Obj_name}.png', bbox_inches = "tight", format = "png")
     
     plt.show()
     plt.close()
