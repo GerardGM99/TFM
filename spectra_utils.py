@@ -304,7 +304,7 @@ def show_lines(ax, lines_file, xrange, priority):
                 prev_ymax = ymax
 
 
-def spec_plot(input_filename, norm=True, ax=None, xmin=3900, xmax=9100, ylim=None, lines_file=None, plot=True):
+def spec_plot(input_filename, norm=True, Av=None, ax=None, xmin=3900, xmax=9100, ylim=None, lines_file=None, plot=True):
     
     spec = pd.read_csv(input_filename, sep=' ')
     wavelength = spec['wavelength']
@@ -312,6 +312,8 @@ def spec_plot(input_filename, norm=True, ax=None, xmin=3900, xmax=9100, ylim=Non
     if norm is True:
         flux = flux/np.mean(flux)
     name=os.path.basename(input_filename).split('.')[0].split('_')[0]
+    if Av is not None:
+        flux = remove(fitzpatrick99(np.array(wavelength), Av, 3.1), np.array(flux))
     plotter(wavelength, flux, figsize=(14,6), plttype='plot', ax=ax, 
             xlabel=r'Wavelength [$\AA$]', ylabel='Normalized Flux', title=name,
             xmin=xmin, xmax=xmax, ylim=ylim, xinvert=False, yinvert=False, legend=False, 
@@ -768,6 +770,8 @@ def spec_velocity(rest_wl, wavelengths, fluxs, site=None, RA=None, DEC=None, obs
     c = 299792.458 # km/s
     velocity = heliocorr + c*(wavelengths-rest_wl)/wavelengths
     # mean_flux = np.mean(fluxs)
+    # flux_continum = fluxs[(abs(velocity)>0.6*xlim[1])&(abs(velocity)<2*xlim[1])]
+    # mean_flux = np.mean(flux_continum)
     if xlim is not None:
         xmask = (xlim[0]<=velocity) & (velocity<=xlim[1])
         velocity = velocity[xmask]
@@ -828,8 +832,8 @@ def classification_grid(wavelengths, fluxes, Obj_name, bin_size=None, velocity_r
     transitions = [['H'], ['He I'], ['He II'], ['Na I'], ['Ca II (K&H)'], ['Ca II (triplet)'], ['Fe II', 'Mg II'], ['Si III'], ['[O I]']] #, 'HeI(weak)'
     
     if velocity_range==1:
-        vel_range = {'H':[-700, 700],
-                     'He I':[-400, 400],
+        vel_range = {'H':[-1000, 1000],
+                     'He I':[-700, 700],
                      'He II':[-200, 200], 
                      'Na I':[-200, 200],
                      'Ca II (K&H)':[-200, 200], 

@@ -58,6 +58,54 @@ for file in files29:
                                site='lapalma', RA=RA, DEC=DEC, obs_time=obs_time,
                                savepath=plotdir)
         
+
+#%%
+import spectra_utils as su
+import pandas as pd
+import os
+import matplotlib.pyplot as plt
+from astropy.table import Table
+
+path28 = '203/FIES/28/'
+files = os.listdir(path28)
+plotdir = os.path.join(path28,'plots')
+if not os.path.isdir(plotdir):
+    os.makedirs(plotdir)
+asciicords='data/TFM_table.csv'
+table_coord = Table.read(asciicords, format='ascii.csv')
+for file in files:
+    if file.endswith('.txt'):
+        header = fits.getheader(os.path.join(path28, file.replace('.txt', '.fits')))
+        name = header['OBJECT']
+        if name.startswith('H') or name.startswith('b'):
+            continue
+        Av = table_coord['$A_V$'][table_coord['Gaia source ID']==int(name)]
+        su.spec_plot(os.path.join(path28,file), norm=True, Av=Av, ax=None, ylim=None, lines_file='data/spectral_lines.txt', 
+                      plot=False, xmin=3850, xmax=4350)
+        out_name = os.path.join(plotdir, name+file.split('_')[0])
+        plt.savefig(f'{out_name}.png', bbox_inches = "tight", format = "png")
+        plt.close()
+        
+path29 = '203/FIES/29/'
+files = os.listdir(path29)
+plotdir = os.path.join(path29,'plots')
+if not os.path.isdir(plotdir):
+    os.makedirs(plotdir)
+asciicords='data/TFM_table.csv'
+table_coord = Table.read(asciicords, format='ascii.csv')
+for file in files:
+    if file.endswith('.txt'):
+        header = fits.getheader(os.path.join(path29, file.replace('.txt', '.fits')))
+        name = header['OBJECT']
+        if name.startswith('y'):
+            continue
+        Av = table_coord['$A_V$'][table_coord['Gaia source ID']==int(name)]
+        su.spec_plot(os.path.join(path29,file), norm=True, Av=Av, ax=None, ylim=None, lines_file='data/spectral_lines.txt', 
+                      plot=False, xmin=3850, xmax=4350)
+        out_name = os.path.join(plotdir, name+file.split('_')[0])
+        plt.savefig(f'{out_name}.png', bbox_inches = "tight", format = "png")
+        plt.close()
+        
 #%%ALFOSC
 import pandas as pd
 import spectra_utils as su
@@ -114,25 +162,30 @@ for file in files:
                 
                 
 #%%
-import matplotlib
-matplotlib.use('Qt5Agg')
+# import matplotlib
+# matplotlib.use('Qt5Agg')
+import matplotlib.pyplot as plt
 import spectra_utils as su
 import os
 import pandas as pd
+from astropy.table import Table
 
 path = '203/ALFOSC/'
 files = os.listdir(path)
 plotdir = os.path.join(path,'plots')
 if not os.path.isdir(plotdir):
     os.makedirs(plotdir)
+asciicords='data/TFM_table.csv'
+table_coord = Table.read(asciicords, format='ascii.csv')
 for file in files:
     if file.endswith('.txt'):
-        su.spec_plot(os.path.join(path,file), norm=True, ax=None, ylim=None, lines_file='data/spectral_lines.txt', 
-                      plot=True, xmin=3850, xmax=None)
+        name = file.split('.')[0].split('_')[0]
+        Av = table_coord['$A_V$'][table_coord['Gaia source ID']==int(name)]
+        su.spec_plot(os.path.join(path,file), norm=True, Av=Av, ax=None, ylim=None, lines_file='data/spectral_lines.txt', 
+                      plot=False, xmin=6200, xmax=None)
         out_name = os.path.join(plotdir, file.split('.')[0])
-        # plt.savefig(f'{out_name}.png', bbox_inches = "tight", format = "png")
-        # plt.close()
-        break
+        plt.savefig(f'{out_name}-COLD.png', bbox_inches = "tight", format = "png")
+        plt.close()
         
         # spectrum = pd.read_csv(os.path.join(path, file), sep=' ')
         
