@@ -311,6 +311,14 @@ def spec_plot(input_filename, norm=True, Av=None, ax=None, xmin=3900, xmax=9100,
     flux = spec['flux']
     if norm is True:
         flux = flux/np.mean(flux)
+    elif (norm=='region')&(xmin is not None)&(xmax is not None):
+        length = xmax-xmin
+        mask_blue = (wavelength > xmin) & (wavelength < (xmin+length*0.4))
+        flux_blue = flux[mask_blue]
+        mask_red = (wavelength < xmax) & (wavelength > (xmax-length*0.4))
+        flux_red = flux[mask_red]
+        flux_mean = (np.mean(flux_blue)+np.mean(flux_red))/2
+        flux = flux/flux_mean
     name=os.path.basename(input_filename).split('.')[0].split('_')[0]
     if Av is not None:
         flux = remove(fitzpatrick99(np.array(wavelength), Av, 3.1), np.array(flux))
@@ -341,6 +349,8 @@ def spec_plot(input_filename, norm=True, Av=None, ax=None, xmin=3900, xmax=9100,
         plt.tight_layout()
         plt.show()
     
+    if (norm=='region')&(xmin is not None)&(xmax is not None):
+        return flux_mean
 
 def cafos_spectra(input_filename, asciicords, xrange=[3500, 9501], calibration='flux', dered=None, 
                   lines_file=None, priority=['1'], plot=True, outdir=None, ax=None):
