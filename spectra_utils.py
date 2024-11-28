@@ -5,7 +5,7 @@ Created on Tue Mar  5 13:49:06 2024
 @author: Gerard Garcia
 """
 
-from gaiaxpy import convert, calibrate
+from gaiaxpy import calibrate
 import matplotlib.pyplot as plt
 import matplotlib.transforms as transforms
 import pandas as pd
@@ -25,6 +25,8 @@ from extinction import fitzpatrick99, remove, calzetti00
 from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation
 import matplotlib.gridspec as gridspec
+from scipy.interpolate import interp1d
+from scipy.ndimage import gaussian_filter
 
 def bin_spectrum(wavelengths, fluxes, bin_size):
     """Bin the spectrum by averaging over specified bin_size."""
@@ -115,7 +117,7 @@ def spec_file_convert(input_filename):
         
 def Gaia_XP(id_list, out_path=None, plot=False, ax=None):
     '''
-    Plota Gaia XP spectrum
+    Plot a Gaia XP spectrum
 
     Parameters
     ----------
@@ -138,7 +140,6 @@ def Gaia_XP(id_list, out_path=None, plot=False, ax=None):
     H_beta = 486.1
     H_gamma = 434.1
     
-    # Assuming calibrate is a defined function
     calibrated_spectra, sampling = calibrate(id_list, save_file=False)
 
     for i in range(len(calibrated_spectra)):
@@ -244,6 +245,105 @@ def Gaia_rvs(id_list, rv_table=None, plot=True, out_dir=None):
     # Output a dataframe with the x and y axis of each source's RVS
     out_df = pd.DataFrame({'IDs':source_ids, 'wavelenghts':x_axis, 'fluxes':y_axis})
     return out_df
+
+def fluxcalib_with_Gaia(file_to_calibrate, gaia_id, save_path, plot=False):
+    # Observations    
+    new_spec = pd.read_csv(file_to_calibrate, sep=' ')
+    max_wl = max(new_spec['wavelength'])
+    min_wl = 3700
+    raw_wl = new_spec['wavelength']
+    raw_flux = new_spec['flux']
+    mask = (raw_wl<max_wl)&(raw_wl>min_wl)
+    raw_wl = raw_wl[mask]
+    raw_flux = raw_flux[mask]
+    
+    # Gaia
+    calibrated_spectra, sampling = calibrate([gaia_id], save_file=False)
+    # Change units to A, and to to 1e-17 erg/s/cm^2/A
+    std_wl = sampling * 10
+    std_flux = calibrated_spectra['flux'].iloc[0] * 100 * 1e17
+    mask = (std_wl>min_wl)&(std_wl<max_wl)
+    std_wl = std_wl[mask]
+    std_flux = std_flux[mask]
+    
+    # Smoothe both spectrums
+    # sigma = 50 #Smoothing. Larger values may not be good to get the initial and final fluxes.
+    # ams_per_pix = np.abs(np.median(raw_wl[1:]-raw_wl[0:-1]))
+    # sigma = sigma / ams_per_pix
+    smoothed_gaia_flux = gaussian_filter(std_flux, sigma=20)
+    smoothed_obs_flux = gaussian_filter(raw_flux, sigma=50)
+
+    #Interpolate the raw_std in the same wavelength bins as the absolute flux spectrum. 
+    # abs_flux_std = np.interp(std_wl, new_spec['wavelength'], new_spec['flux'])
+    interp_gaia_flux = interp1d(std_wl, smoothed_gaia_flux, bounds_error=False, fill_value="extrapolate")
+    interpolated_gaia_flux = interp_gaia_flux(raw_wl)
+
+    factor = interpolated_gaia_flux/smoothed_obs_flux
+    
+    df = pd.DataFrame({'wavelength':raw_wl, 'flux':raw_flux*factor})
+    df.to_csv(save_path, sep=' ', index=False)
+    
+    if plot:
+        fig, ax = plt.subplots(figsize=(12, 8))
+
+        ax.plot(raw_wl, interpolated_gaia_flux)
+        ax.plot(raw_wl, raw_flux)
+        ax.plot(raw_wl, smoothed_obs_flux)
+        ax.plot(raw_wl, raw_flux*factor)
+
+        # ax.set_ylim(bottom=-10, top=1200)
+
+        # labels, text...
+        ax.set_xlabel("Rest Wavelength [A]", fontsize=16, fontfamily='serif')
+        ax.set_ylabel("Flux [$10^{-17}$ erg s$^{-1}$ A$^{-1}$ cm$^{-2}$]", fontsize=16,  fontfamily='serif')
+        ax.set_title(gaia_id, fontsize=16,  fontfamily='serif')
+        ax.minorticks_on()
+        ax.tick_params(axis='both', which='both', labelsize=14, direction='in')
+
+        plt.show()
+        plt.close()
+        
+        #----#
+        fig, ax = plt.subplots(figsize=(12, 8))
+
+        ax.plot(raw_wl, interpolated_gaia_flux/np.median(interpolated_gaia_flux))
+        ax.plot(raw_wl, raw_flux/np.median(raw_flux))
+        ax.plot(raw_wl, smoothed_obs_flux/np.median(smoothed_obs_flux))
+        ax.plot(raw_wl, raw_flux*factor/np.median(raw_flux*factor))
+
+        # ax.set_ylim(bottom=-10, top=1200)
+
+        # labels, text...
+        ax.set_xlabel("Rest Wavelength [A]", fontsize=16, fontfamily='serif')
+        ax.set_ylabel("Normalized Flux", fontsize=16,  fontfamily='serif')
+        ax.set_title(gaia_id, fontsize=16,  fontfamily='serif')
+        ax.minorticks_on()
+        ax.tick_params(axis='both', which='both', labelsize=14, direction='in')
+
+        plt.show()
+        plt.close()
+        
+        #----#
+        fig, ax = plt.subplots(figsize=(12, 8))
+
+        ax.plot(raw_wl, raw_flux*factor, c='k')
+        ax.plot(std_wl, std_flux)
+        ax.plot(raw_wl, interpolated_gaia_flux)
+        ax.plot(raw_wl, gaussian_filter(raw_flux*factor, sigma=50))
+        
+        
+        ax.set_xlabel("Rest Wavelength [A]", fontsize=16, fontfamily='serif')
+        ax.set_ylabel("Flux [$10^{-17}$ erg s$^{-1}$ A$^{-1}$ cm$^{-2}$]", fontsize=16,  fontfamily='serif')
+        ax.set_title(gaia_id, fontsize=16,  fontfamily='serif')
+        ax.minorticks_on()
+        ax.tick_params(axis='both', which='both', labelsize=14, direction='in')
+
+        # labels, text...
+        ax.set_xlabel("Rest Wavelength [A]", fontsize=18)
+        ax.set_ylabel("Flux [$10^{-17}$ erg s$^{-1}$ A$^{-1}$ cm$^{-2}$]", fontsize=18)
+
+        plt.show()
+        plt.close()
 
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#

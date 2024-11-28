@@ -256,6 +256,55 @@ plt.close()
 #%%
 
 import pandas as pd
+import numpy as np
+import extinction
+
+# Friedrich Anders (https://github.com/fjaellet/gaia_edr3_photutils/tree/main), Schlafly+2016 extinction law
+def AG(AV, Teff):
+    """
+    Compute A_G as a function of AV (a.k.a. A_0) and Teff (using pysvo)
+    
+    Takes:
+        AV   (array/float) - extinction at lambda=5420 AA in mag
+        Teff (array/float) - effective temperature in K
+    Returns:
+        AG   (array/float) - extinction in the Gaia EDR3 G band
+    """
+    coeffs = np.array([[ 7.17833016e-01, -1.88633321e-02,  5.77430628e-04],
+       [ 2.84726306e-05, -1.65986478e-06,  3.29897761e-08],
+       [-4.70938509e-10,  2.76393659e-11, -5.56454892e-13]])
+    return np.polynomial.polynomial.polyval2d(Teff, AV, coeffs) * AV
+
+def ARP(AV, Teff):
+    """
+    Compute A_RP as a function of AV (a.k.a. A0) and Teff (using pysvo)
+    
+    Takes:
+        AV   (array/float) - extinction at lambda=5420 AA in mag
+        Teff (array/float) - effective temperature in K
+    Returns:
+        ARP   (array/float) - extinction in the Gaia EDR3 G_RP band
+    """
+    coeffs = np.array([[ 5.87378504e-01, -6.37597056e-03,  8.71180628e-05],
+       [ 4.71862901e-06, -7.42096958e-09, -4.51905872e-09],
+       [-7.99119123e-11,  2.80843682e-13,  7.23076354e-14]])
+    return np.polynomial.polynomial.polyval2d(Teff, AV, coeffs) * AV
+
+def ABP(AV, Teff):
+    """
+    Compute A_BP as a function of AV (a.k.a. A0) and Teff (using pysvo)
+    
+    Takes:
+        AV   (array/float) - extinction at lambda=5420 AA in mag
+        Teff (array/float) - effective temperature in K
+    Returns:
+        ARP   (array/float) - extinction in the Gaia EDR3 G_BP band
+    """
+    coeffs = np.array([[ 9.59835295e-01, -1.16380247e-02,  3.50836411e-04],
+       [ 1.82122771e-05, -9.17453966e-07,  1.43568978e-08],
+       [-2.90443152e-10,  1.41611091e-11, -2.10356011e-13]])
+    return np.polynomial.polynomial.polyval2d(Teff, AV, coeffs) * AV
+
 
 coeff = pd.read_csv('data/Fitz19_EDR3_MainSequence.csv')
 X = 7954.713/5040
@@ -270,15 +319,17 @@ a7 = coeff['A3']
 a8 = coeff['XA']
 a9 = coeff['AX2']
 a10 = coeff['XA2']
-km =  a1 + a2*X + a3*X**2 + a4*X**3 + a5*A0 + a6*A0**2 + a7*A0**3 + a8*A0*X + a9*A0*X**2 + a10*X*A0**2
+km =  a1 + a2*X + a3*X**2 + a4*X**3 + a5*A0 + a6*A0**2 + a7*A0**3 + a8*A0*X + a9*A0*X**2 + a10*X*A0**2 #Gaia EDR3
 # print(km)
+AG_ext, ABP_ext, ARP_ext = extinction.fitzpatrick99(np.array([6730, 5320, 7970]), A0, 3.1) #Extinction
+
 print('NaI D')
 A_G = km[15]*A0
 A_BP = km[12]*A0
 A_RP = km[9]*A0
-print('A_G =', A_G, ' mag')
-print('A_BP =', A_BP, ' mag')
-print('A_RP =', A_RP, ' mag')
+print('A_G =', A_G, ' mag; A_G_extinction =', AG_ext, ' mag; A_G_fede =', AG(A0, X), ' mag')
+print('A_BP =', A_BP, ' mag; A_BP_extinction =', ABP_ext, ' mag; A_BP_fede =', ABP(A0, X), ' mag')
+print('A_RP =', A_RP, ' mag; A_RP_extinction =', ARP_ext, ' mag; A_RP_fede =', ARP(A0, X), ' mag')
 
 table = pd.read_csv('data/extinction.csv')
 source = table[table['source_id']==508419369310190976]
@@ -286,8 +337,8 @@ source = table[table['source_id']==508419369310190976]
 phot_g_mean_mag = source['phot_g_mean_mag']
 dist = source['dist50']*1000 #parsec
 bp_rp = source['bp_rp']
-G = phot_g_mean_mag-5*(np.log10(dist)-1)-A_G
-BP_RP = bp_rp - A_BP + A_RP
+G = phot_g_mean_mag-5*(np.log10(dist)-1)-AG(A0, X)
+BP_RP = bp_rp - ABP(A0, X) + ARP(A0, X)
 
 
 print('G = ', G.iloc[0], ' mag')
@@ -300,15 +351,38 @@ A0 = 2.709994885071724
 A_G = km[15]*A0
 A_BP = km[12]*A0
 A_RP = km[9]*A0
-print('A_G =', A_G, ' mag')
-print('A_BP =', A_BP, ' mag')
-print('A_RP =', A_RP, ' mag')
-G = phot_g_mean_mag-5*(np.log10(dist)-1)-A_G
-BP_RP = bp_rp - A_BP + A_RP
+AG_ext, ABP_ext, ARP_ext = extinction.fitzpatrick99(np.array([6730, 5320, 7970]), A0, 3.1)
+print('A_G =', A_G, ' mag; A_G_extinction =', AG_ext, ' mag; A_G_fede =', AG(A0, X), ' mag')
+print('A_BP =', A_BP, ' mag; A_BP_extinction =', ABP_ext, ' mag; A_BP_fede =', ABP(A0, X), ' mag')
+print('A_RP =', A_RP, ' mag; A_RP_extinction =', ARP_ext, ' mag; A_RP_fede =', ARP(A0, X), ' mag')
+G = phot_g_mean_mag-5*(np.log10(dist)-1)-AG(A0, X)
+BP_RP = bp_rp - ABP(A0, X) + ARP(A0, X)
 print('G = ', G.iloc[0], ' mag')
 print('BP-RP = ', BP_RP.iloc[0], ' mag')
 
 print('---')
 print('Original Starhorse values')
-print('G = -3.67939 mag')
-print('BP-RP = 0.9948 mag')
+print('G = ', source['mg0'].iloc[0], ' mag')
+print('BP-RP = ', source['bprp0'].iloc[0], ' mag')
+
+#%%
+
+from phot_utils import CMD
+import matplotlib.pyplot as plt
+from astropy.table import Table
+
+# t = Table.read("tables/starhorse2-result.vot", format="votable")
+# CMD('data/starhorse2-result.vot', table_format="votable", s=10, density=True, 
+#     cmap='viridis', norm='log')
+CMD('data/70_targets_extended.csv', s=100, color='grey', marker='*', alpha=0.5)
+ax=plt.gca()
+ax.scatter(-0.7655574331391879, -5.131191698585232, s=200, color='blue', marker='*')
+ax.scatter(0.09557456, -3.6793861 , s=200, color='r', marker='*')
+ax.scatter(0.018795921067792154, -3.765402096655256 , s=200, color='green', marker='*')
+ax.set_xlabel("$(BP - RP)$ [mag]", fontsize = 25)
+ax.set_ylabel("$M_{G}$ [mag]", fontsize = 25)
+ax.tick_params(labelsize = 20)
+ax.set_xlim(-1, 1.5)
+# ax.set_ylim(2, -7)
+plt.show()
+plt.close()
