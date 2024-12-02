@@ -21,7 +21,7 @@ from PIL import Image
 from io import BytesIO
 import pylab
 import os
-from phot_utils import density_scatter
+import phot_utils as pu
 
 
 # Nadia's code (from finder_chart.py)
@@ -391,7 +391,7 @@ def sky_plot(x, y, frame='galactic', projection='aitoff', density=False, ax=None
             y = coords.dec.radian
         
         if density is True:
-            density_scatter(x, y, bins = 500, ax=ax, **kwargs)
+            pu.density_scatter(x, y, bins = 500, ax=ax, **kwargs)
         else:
             ax.scatter(x, y, **kwargs)
         
@@ -423,7 +423,7 @@ def sky_plot(x, y, frame='galactic', projection='aitoff', density=False, ax=None
     
     else:
         if density is True:
-            plot = density_scatter(x, y, bins = 500, ax=ax, **kwargs)
+            plot = pu.density_scatter(x, y, bins = 500, ax=ax, **kwargs)
             cb = plt.colorbar(plot, pad = 0.037, ax=ax)
             cb.set_label("Sources per bin", fontsize = 19, labelpad = -75)
         else:

@@ -27,6 +27,15 @@ from astropy.coordinates import SkyCoord, EarthLocation
 import matplotlib.gridspec as gridspec
 from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter
+from specutils import Spectrum1D, SpectralRegion
+from specutils.manipulation import noise_region_uncertainty
+from specutils.fitting import find_lines_threshold
+from specutils.fitting import find_lines_derivative
+from specutils.fitting import fit_lines
+from specutils.fitting import estimate_line_parameters
+from specutils.manipulation import extract_region
+from specutils.analysis import equivalent_width
+from scipy.integrate import quad
 
 def bin_spectrum(wavelengths, fluxes, bin_size):
     """Bin the spectrum by averaging over specified bin_size."""
@@ -448,6 +457,7 @@ def spec_plot(input_filename, norm=True, Av=None, ax=None, xmin=3900, xmax=9100,
     if plot:
         plt.tight_layout()
         plt.show()
+        plt.close()
     
     if (norm=='region')&(xmin is not None)&(xmax is not None):
         return flux_mean
@@ -1031,8 +1041,211 @@ def fits2grid(input_filename, site=None, xlim=None, lines_file=None):
     classification_grid(wavelengths, fluxes, obj_name+os.path.basename(input_filename), 
                         site=site, RA=RA, DEC=DEC, obs_time=obs_time,
                         savepath=plotdir)
+
+#---------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------#
+def gaussian(x, A, mu, sigma):
+    return A * np.exp(-((x - mu)**2) / (2 * sigma**2))
+
+def find_lines(wavelength, flux, xmin, xmax, norm=True, smooth=None, threshold=1, noise_range=None, plot=False):
+   
+    mask = (wavelength>xmin)&(wavelength<xmax)
     
+    # Normalize the flux using 60% of the range given (30% from the redder part and 30% form the bluer part)
+    if norm is True:
+        length = xmax-xmin
+        mask_blue = (wavelength > xmin) & (wavelength < (xmin+length*0.2))
+        flux_blue = flux[mask_blue]
+        mask_red = (wavelength < xmax) & (wavelength > (xmax-length*0.2))
+        flux_red = flux[mask_red]
+        flux_mean = (np.mean(flux_blue)+np.mean(flux_red))/2
+        flux = flux/flux_mean -1
+   
+    # Create specutils Spectrum1D class
+    if smooth is not None:
+        smoothed_flux = gaussian_filter(flux[mask], sigma=smooth)
+        spectrum = Spectrum1D(spectral_axis=wavelength[mask] * u.angstrom, flux=smoothed_flux * u.Unit('erg / (cm2 s Å)') )
+    else:
+        spectrum = Spectrum1D(spectral_axis=wavelength[mask] * u.angstrom, flux=flux[mask] * u.Unit('erg / (cm2 s Å)') )
+        
+    # Find lines using specutils find_lines_derivative or find_lines_threshold
+    if noise_range is None:
+        lines = find_lines_derivative(spectrum, flux_threshold=threshold)
+    else:
+        noise_region = SpectralRegion(noise_range[0]*u.angstrom, noise_range[1]*u.angstrom)
+        spectrum = noise_region_uncertainty(spectrum, noise_region)
+        lines = find_lines_threshold(spectrum, noise_factor=threshold)
+   
+    abs_lines = lines[lines['line_type'] == 'absorption']['line_center'].value
+    emi_lines = lines[lines['line_type'] == 'emision']['line_center'].value
+   
+    if plot:
+        plotter(wavelength[mask], flux[mask], figsize=(14,6), plttype='plot', ax=None,
+                xlabel=r'Wavelength [$\AA$]', ylabel='Normalized Flux', title=None,
+                xmin=xmin, xmax=xmax, ylim=None, xinvert=False, yinvert=False, legend=False,
+                show=False, savepath=None, saveformat='png', color='k')
+        ax=plt.gca()
+        if smooth is not None:
+            ax.plot(wavelength[mask], smoothed_flux, ls='--')
+        for line in abs_lines:
+            ax.axvline(line, color='purple', alpha=0.6)
+        for line in emi_lines:
+            ax.axvline(line, color='g', alpha=0.6)
+        
+        ax.grid(True, which='both', axis='both')
+        plt.tight_layout()
+        plt.show()
+        plt.close()
+   
+    return abs_lines, emi_lines
+
+def EW(filepath, xrange):
     
+    # Read spectrum
+    spectrum = pd.read_csv(filepath, sep=' ')
+    wavelength = np.array(spectrum['wavelength'])
+    flux = np.array(spectrum['flux'])
+    xmin=xrange[0]
+    xmax=xrange[1]
+    mask = (wavelength>xmin)&(wavelength<xmax)
+    
+    # Normalize
+    length = xmax-xmin
+    mask_blue = (wavelength > xmin) & (wavelength < (xmin+length*0.2))
+    flux_blue = flux[mask_blue]
+    mask_red = (wavelength < xmax) & (wavelength > (xmax-length*0.2))
+    flux_red = flux[mask_red]
+    flux_mean = (np.mean(flux_blue)+np.mean(flux_red))/2
+    flux = flux/flux_mean -1
+    spectrum = Spectrum1D(spectral_axis=wavelength[mask] * u.angstrom, 
+                          flux=flux[mask] * u.Unit('erg / (cm2 s Å)') )
+    
+    flux_mean = spec_plot(filepath, norm='region', ax=None, ylim=None, 
+                          lines_file='data/spectral_lines.txt', plot=True, xmin=xmin, xmax=xmax)
+    sigma=None
+    threshold = float(input('Find lines threshold: '))
+    input_noise = input('Noise range (left and right separated by a comma, or None): ')
+    if input_noise.lower() in ['none', 'n']:
+        noise_range = None
+    else:
+        noise_range = np.array(input_noise.split(',')).astype(int)
+    
+    loop = True
+    while loop is True:
+        abs_lines, emi_lines = find_lines(wavelength, flux, xmin, xmax, norm=False, smooth=sigma,
+                                          threshold=threshold, noise_range=noise_range, plot=True)
+            
+        cont = input('Correct lines? (yes/no): ')
+        if cont.lower() in ['yes', 'y']:
+            loop = False
+        else:
+            smooth = input('Sigma to smooth the spectrum to find the lines (skip to not smooth the spectrum): ')
+            if smooth == '':
+                sigma = None
+            else:
+                sigma = float(smooth)
+            threshold = float(input('Find lines threshold: '))
+            input_noise = input('Noise range (left and right separated by a comma, or None): ')
+            if input_noise.lower() in ['none', 'n']:
+                noise_range = None
+            else:
+                noise_range = np.array(input_noise.split(',')).astype(int) 
+    
+    line_width = float(input('Width of the line (window to fit a gaussian): '))
+    gaussian_init_abs = []
+    for line in abs_lines:
+        sub_region = SpectralRegion((line-line_width/2)*u.angstrom, (line+line_width/2)*u.angstrom)
+        sub_spectrum = extract_region(spectrum, sub_region)
+        result = estimate_line_parameters(sub_spectrum, models.Gaussian1D())
+        g_init = models.Gaussian1D(amplitude=result.amplitude.value* u.Unit('erg / (cm2 s Å)'), 
+                                   mean=line*u.angstrom, stddev=result.stddev.value*u.angstrom)
+        gaussian_init_abs.append(g_init)
+        
+    gaussian_init_emi = []
+    for line in emi_lines:
+        sub_region = SpectralRegion((line-line_width/2)*u.angstrom, (line+line_width/2)*u.angstrom)
+        sub_spectrum = extract_region(spectrum, sub_region)
+        result = estimate_line_parameters(sub_spectrum, models.Gaussian1D())
+        g_init = models.Gaussian1D(amplitude=result.amplitude.value* u.Unit('erg / (cm2 s Å)'), 
+                                   mean=line*u.angstrom, stddev=result.stddev.value*u.angstrom)
+        gaussian_init_emi.append(g_init)
+    
+    spectrum_min_line = spectrum
+    # gaus_fit_abs = []
+    flux_fit_abs = []
+    ew_specutils_abs = []
+    ew_quad_abs = []
+    for i, gaus_line in enumerate(gaussian_init_abs):
+        input_text = f'Window for the fit of absorption line {i+1} (wl axis left and right separated by a comma): '
+        window = np.array((input(input_text)).split(',')).astype(float)
+        ew = equivalent_width(spectrum_min_line+1* u.Unit('erg / (cm2 s Å)'), 
+                              regions=SpectralRegion(window[0]*u.angstrom, window[1]*u.angstrom))
+        ew_specutils_abs.append(ew.value)
+        g_fit = fit_lines(spectrum_min_line, gaus_line, window=(window[0]*u.angstrom,window[1]*u.angstrom))
+        y_fit = g_fit(wavelength[mask]*u.angstrom)
+        # gaus_fit_abs.append(g_fit)
+        flux_fit_abs.append(y_fit)
+        ew_int = quad(gaussian, args=(-g_fit.amplitude.value, g_fit.mean.value, g_fit.stddev.value), a=window[0], b=window[1])
+        ew_quad_abs.append(ew_int[0])
+        spectrum_min_line = spectrum_min_line.add(-y_fit)
+        flux_mean = spec_plot(filepath, norm='region', ax=None, ylim=None, 
+                              lines_file='data/spectral_lines.txt', plot=False, xmin=xmin, xmax=xmax)
+        for j, fitted_line in enumerate(flux_fit_abs):
+            plt.plot(wavelength[mask], fitted_line+1* u.Unit('erg / (cm2 s Å)'))
+            plt.axvspan(abs_lines[j]-ew_specutils_abs[j]/2, abs_lines[j]+ew_specutils_abs[j]/2, 
+                        color='blue', alpha=0.3)
+        plt.show()
+        plt.close()
+        
+    spectrum_min_line = spectrum
+    # gaus_fit_emi = []
+    flux_fit_emi = []
+    ew_specutils_emi = []
+    ew_quad_emi = []
+    for i, gaus_line in enumerate(gaussian_init_emi):
+        input_text = f'Window for the fit of emission line {i+1} (wl axis left and right separated by a comma): '
+        window = np.array((input(input_text)).split(',')).astype(float)
+        ew = equivalent_width(spectrum_min_line+1* u.Unit('erg / (cm2 s Å)'), 
+                              regions=SpectralRegion(window[0]*u.angstrom, window[1]*u.angstrom))
+        ew_specutils_emi.append(ew.value)
+        g_fit = fit_lines(spectrum_min_line, gaus_line, window=(window[0]*u.angstrom,window[1]*u.angstrom))
+        y_fit = g_fit(wavelength[mask]*u.angstrom)
+        # gaus_fit_emi.append(g_fit)
+        flux_fit_emi.append(y_fit)
+        ew_int = quad(gaussian, args=(-g_fit.amplitude.value, g_fit.mean.value, g_fit.stddev.value), a=window[0], b=window[1])
+        ew_quad_emi.append(ew_int[0])
+        spectrum_min_line = spectrum_min_line.add(-y_fit)
+        flux_mean = spec_plot(filepath, norm='region', ax=None, ylim=None, 
+                              lines_file='data/spectral_lines.txt', plot=False, xmin=xmin, xmax=xmax)
+        for j, fitted_line in enumerate(flux_fit_emi):
+            plt.plot(wavelength[mask], fitted_line+1* u.Unit('erg / (cm2 s Å)'))
+            plt.axvspan(abs_lines[j]-ew_specutils_emi[j]/2, abs_lines[j]+ew_specutils_emi[j]/2, 
+                        color='blue', alpha=0.3)
+        plt.show()
+        plt.close()
+    
+    return ew_specutils_abs, ew_quad_abs, ew_specutils_emi, ew_quad_emi
+    
+def NaID_extinction(ew, line='D1'):
+    if line == 'D1':
+        D1 = 10**(2.47*ew - 1.76)
+        AVD1 = D1*3.1
+        return D1, AVD1
+    elif line == 'D2':
+        D2 = 10**(2.16*ew - 1.91)
+        AVD2 = D2*3.1
+        return D2, AVD2
+    
+def DiBs_extinction(ew, line='5780'):
+    if line == '5780':
+        dib5780 = 1.978*ew +0.035
+        AV5780 = dib5780*3.1
+        return dib5780, AV5780
+    elif line == '6614':
+        dib6614 = 3.846*ew +0.072
+        AV6614 = dib6614*3.1
+        return dib6614, AV6614
+
 #---------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------#
 
