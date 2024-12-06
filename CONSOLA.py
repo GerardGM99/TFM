@@ -557,13 +557,18 @@ from astropy.table import Table
 #     plt.close()
     
 # t = Table.read("tables/starhorse2-result.vot", format="votable")
-CMD('data/starhorse2-result.vot', table_format="votable", s=10, density=True, 
-    cmap='viridis', norm='log')
+# CMD('data/starhorse2-result.vot', table_format="votable", s=10, density=True, 
+#     cmap='viridis', norm='log')
+CMD('data/70_targets_extended.csv', s=100, color='grey', marker='*', alpha=0.5)
 ax=plt.gca()
-CMD('data/70_targets_extended.csv', s=100, color='r', marker='*', ax=ax)
-ax.set_xlabel("$(BP - RP)_{SH}$ [mag]", fontsize = 25)
-ax.set_ylabel("$M_{G,SH}$ [mag]", fontsize = 25)
+ax.scatter(-0.7655574331391879, -5.131191698585232, s=200, color='blue', marker='*')
+ax.scatter(0.09557456, -3.6793861 , s=200, color='r', marker='*')
+ax.scatter(0.018795921067792154, -3.765402096655256 , s=200, color='green', marker='*')
+ax.set_xlabel("$(BP - RP)$ [mag]", fontsize = 25)
+ax.set_ylabel("$M_{G}$ [mag]", fontsize = 25)
 ax.tick_params(labelsize = 20)
+ax.set_xlim(-1, 1.5)
+# ax.set_ylim(2, -7)
 plt.show()
 plt.close()
 
@@ -637,3 +642,115 @@ plt.xlabel('Phase', fontsize=15)
 # plt.ylim(17, 16.6)
 plt.tight_layout()
 plt.show()
+
+#%% EW-Extinction Be stars 28
+
+import phot_utils as pu
+import pandas as pd
+import matplotlib.pyplot as plt
+from astropy.io import fits
+import os
+
+path28 = '203/FIES/28/'
+files28 = os.listdir('203/FIES/28/')
+
+txt_files28 = [file for file in files28 if file.endswith('txt')]
+fits_files28 = [file for file in files28 if file.endswith('fits')]
+
+# Dictionary to store the association
+file_associations = {}
+
+for txt_file in txt_files28:
+    # Extract the base name (without extension)
+    base_name = txt_file.replace('.txt', '')
+    
+    # Find the matching fits file
+    fits_file = next((f for f in fits_files28 if f.startswith(base_name) and f.endswith('.fits')), None)
+    
+    if fits_file:
+        # Open the fits file and read the 'Object' header
+        with fits.open(os.path.join(path28,fits_file)) as hdul:
+            object_name = hdul[0].header.get('OBJECT', 'Unknown')
+        
+        # Associate the txt file with the object name
+        file_associations[txt_file] = object_name
+        
+# Remove items where the value starts with a letter
+keys_to_remove = [
+    key for key, value in file_associations.items() if value[0].isalpha()
+]
+
+for key in keys_to_remove:
+    del file_associations[key]
+    
+# Values to remove
+values_to_remove = {"2061252975440642816", "2175699216614191360"}
+
+# Remove items with specific values
+keys_to_remove = [key for key, value in file_associations.items() if value in values_to_remove]
+
+for key in keys_to_remove:
+    del file_associations[key]
+
+updated_file_associations = {f"{path28}{key}": value for key, value in file_associations.items()}
+
+list_ids = list(updated_file_associations.values())
+list_filepath = list(updated_file_associations.keys())
+
+pu.new_extincted_CMD(list_ids, list_filepath, '203/ew-extinction', plot=True)
+
+#%% EW-Extinction Be stars 29
+
+import phot_utils as pu
+import pandas as pd
+import matplotlib.pyplot as plt
+from astropy.io import fits
+import os
+
+path29 = '203/FIES/29/'
+files29 = os.listdir('203/FIES/29/')
+
+txt_files29 = [file for file in files29 if file.endswith('txt')]
+fits_files29 = [file for file in files29 if file.endswith('fits')]
+
+# Dictionary to store the association
+file_associations = {}
+
+for txt_file in txt_files29:
+    # Extract the base name (without extension)
+    base_name = txt_file.replace('.txt', '')
+    
+    # Find the matching fits file
+    fits_file = next((f for f in fits_files29 if f.startswith(base_name) and f.endswith('.fits')), None)
+    
+    if fits_file:
+        # Open the fits file and read the 'Object' header
+        with fits.open(os.path.join(path29,fits_file)) as hdul:
+            object_name = hdul[0].header.get('OBJECT', 'Unknown')
+        
+        # Associate the txt file with the object name
+        file_associations[txt_file] = object_name
+        
+# Remove items where the value starts with a letter
+keys_to_remove = [
+    key for key, value in file_associations.items() if value[0].isalpha()
+]
+
+for key in keys_to_remove:
+    del file_associations[key]
+    
+# Values to remove
+values_to_remove = {"2175699216614191360"}
+
+# Remove items with specific values
+keys_to_remove = [key for key, value in file_associations.items() if value in values_to_remove]
+
+for key in keys_to_remove:
+    del file_associations[key]
+        
+updated_file_associations = {f"{path29}{key}": value for key, value in file_associations.items()}
+
+list_ids = list(updated_file_associations.values())
+list_filepath = list(updated_file_associations.keys())
+
+# pu.new_extincted_CMD(list_ids, list_filepath, '203/ew-extinction', plot=True)

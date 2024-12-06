@@ -442,7 +442,8 @@ ew2_int = quad(gaussian, args=(-g2_fit.amplitude.value, g2_fit.mean.value, g2_fi
 print('EW2: ', ew2.value, 'Å, ', ew2_int[0], 'Å')
 
 # For the D1 line (5896 Å)
-Extinciton1 = 10**(2.47*(ew1.value+ew2.value) - 1.76)
+# Extinciton1 = 10**(2.47*(ew1.value+ew2.value) - 1.76)
+Extinciton1 = 0.16*(ew1.value+ew2.value) - 0.01
 Extinciton2 = 10**(2.47*(ew1_int[0]+ew2_int[0]) - 1.76)
 print('---')
 print('E(B-V) = ', Extinciton1,', ', Extinciton2)

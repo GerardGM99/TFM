@@ -14,7 +14,9 @@ import matplotlib.cm as cm
 from matplotlib.colors import Normalize
 import pandas as pd
 import extinction
-from spectra_utils import EW, NaID_extinction, DiBs_extinction
+import spectra_utils as su
+import os
+import matplotlib.gridspec as gridspec
 
 #Function to plot sources as a scatter plot with density
 def density_scatter( x , y, sort = True, bins = 20, ax=None, **kwargs )   :
@@ -268,53 +270,136 @@ def mag_ext_corr(ide, AV, how):
     G = phot_g_mean_mag-5*(np.log10(dist)-1)-AG
     BP_RP = bp_rp - ABP + ARP
     
-    return G, BP_RP
+    return G, BP_RP, AG, ABP, ARP
 
-def new_extincted_CMD(list_ids, filepath):
+def new_extincted_CMD(list_ids, list_filepath, outdir, plot=False):
     
+    ew_list=[]
+    ew_mean_list=[]
+    ew_std_list=[]
+    windowL_std=[]
+    cont_std=[]
+    av_list=[]
+    ag_list=[]
+    abp_list=[]
+    arp_list=[]
+    G_list=[]
+    BPRP_list=[]
     mg0_list = []
     bprp0_list = []
-    G_na_list = []
-    BP_RP_na_list = []
-    G_dib_list = []
-    BP_RP_dib_list = []
-    for ide in list_ids:
+    for ide,filepath in zip(list_ids,list_filepath):
+        # line_list = ['NaI D1', 'NaI D2', 'NaI D1+D2', 'DIB 5780', 'DIB 6614']
+        line_list = ['DIB 5780', 'DIB 6614']
         table = pd.read_csv('data/extinction.csv')
         source = table[table['source_id']==int(ide)]
         mg0 = source['mg0']
         bprp0 = source['bprp0']
-        # NaI D
-        xrange = [5890, 5900] # D1
-        # xrange = [5884, 5894] # D2
-        ews, _, _, _ = EW(filepath, xrange)
-        sum_ews = sum(ews)
-        _, AV = NaID_extinction(sum_ews, line='D1')
-        G_na, BP_RP_na = mag_ext_corr(ide, AV, how='starhorse')
-        # DiB
-        xrange = [5770, 5790]
-        # range = [6604, 6624]
-        ews, _, _, _ = EW(filepath, xrange)
-        sum_ews = sum(ews)
-        _, AV = DiBs_extinction(sum_ews, line='5780')
-        G_dib, BP_RP_dib = mag_ext_corr(ide, AV, how='starhorse')
-        # Append values to lists to plot later
-        mg0_list.append(mg0)
-        bprp0_list.append(bprp0)
-        G_na_list.append(G_na)
-        BP_RP_na_list.append(BP_RP_na)
-        G_dib_list.append(G_dib)
-        BP_RP_dib_list.append(BP_RP_dib)
         
-    CMD('data/70_targets_extended.csv', s=100, color='grey', marker='*', alpha=0.5)
-    ax=plt.gca()
-    ax.scatter(bprp0_list, mg0_list, s=150, color='r', marker='*')
-    ax.scatter(BP_RP_na_list, G_na_list, s=150, color='blue', marker='*')
-    ax.scatter(BP_RP_dib_list, G_dib_list, s=150, color='green', marker='*')
-    
-    ax.set_xlabel("$(BP - RP)$ [mag]", fontsize = 25)
-    ax.set_ylabel("$M_{G}$ [mag]", fontsize = 25)
-    ax.tick_params(labelsize = 20)   
-    ax.set_xlim(-1.7, 1.6)
-    ax.set_ylim(2, -8)
-    plt.show()
-    plt.close()
+        # # NaI D
+        # xrange1 = [5890, 5900] # D1
+        # ews, _, _, _ = su.EW(filepath, xrange1)
+        # sum_ews1 = sum(ews)
+        # _, AV1 = su.NaID_extinction(sum_ews1, line='D1')
+        # G_na1, BP_RP_na1, AG1, ABP1, ARP1 = mag_ext_corr(ide, AV1, how='starhorse')
+       
+        # xrange2 = [5884, 5894] # D2
+        # ews, _, _, _ = su.EW(filepath, xrange2)
+        # sum_ews2 = sum(ews)
+        # _, AV2 = su.NaID_extinction(sum_ews2, line='D2')
+        # G_na2, BP_RP_na2, AG2, ABP2, ARP2 = mag_ext_corr(ide, AV2, how='starhorse')
+        
+        # _, AV3 = su.NaID_extinction(sum_ews1+sum_ews2, line='combined')
+        # G_na3, BP_RP_na3, AG3, ABP3, ARP3 = mag_ext_corr(ide, AV3, how='starhorse')
+        
+        # DIB
+        xrange3 = [5755, 5800] # 5780
+        ews5780,ews5780_mean,ews5780_std,stats5780 = su.EW2(filepath, xrange3, n=100)
+        _, AV4 = su.DiBs_extinction(ews5780_mean, line='5780')
+        G_dib5780, BP_RP_dib5780, AG4, ABP4, ARP4 = mag_ext_corr(ide, AV4, how='starhorse')
+        
+        xrange4 = [6580, 6650] # 6614
+        ews6614,ews6614_mean,ews6614_std,stats6614 = su.EW2(filepath, xrange4, n=100)
+        _, AV5 = su.DiBs_extinction(ews6614_mean, line='6614')
+        G_dib6614, BP_RP_dib6614, AG5, ABP5, ARP5 = mag_ext_corr(ide, AV5, how='starhorse')
+        
+        # Append values to lists and create csv file with EW, extinction and magnitudes
+        ew_list.extend([ews5780,ews6614])
+        ew_mean_list.extend([ews5780_mean,ews6614_mean])
+        ew_std_list.extend([ews5780_std,ews6614_std])
+        windowL_std.extend([stats5780[0],stats6614[0]])
+        cont_std.extend([stats5780[1],stats6614[1]])
+        av_list.extend([AV4,AV5])
+        ag_list.extend([AG4,AG5])
+        abp_list.extend([ABP4,ABP5])
+        arp_list.extend([ARP4,ARP5])
+        G_list.extend([G_dib5780.iloc[0],G_dib6614.iloc[0]])
+        BPRP_list.extend([BP_RP_dib5780.iloc[0],BP_RP_dib6614.iloc[0]])
+        mg0_list.extend([mg0.iloc[0],mg0.iloc[0]])
+        bprp0_list.extend([bprp0.iloc[0],bprp0.iloc[0]])
+        
+        dic = {'line':line_list, 'EW':ew_list, 'EW_mean':ew_mean_list, 'EW_std':ew_std_list, 
+               'AV':av_list, 'AG':ag_list, 'ABP':abp_list, 'ARP':arp_list, 
+               'G_ext':G_list, 'BPRP_ext':BPRP_list, 'mg0':mg0_list, 'bprp0':bprp0_list}
+        df = pd.DataFrame(dic)
+        dist = os.path.basename(filepath).split('_')[0]
+        df.to_csv(f'{outdir}/{ide}_{dist}.csv', index=False)
+        
+        if not os.path.isdir(f"{outdir}/stats/"):
+            os.makedirs(f"{outdir}/stats/")
+        dic2 = {'line':line_list, 'EW':ew_list, 'EW_mean':ew_mean_list, 'EW_std':ew_std_list, 
+               'windowL_std':windowL_std, 'continuum_std':cont_std}
+        df2 = pd.DataFrame(dic2)
+        df2.to_csv(f'{outdir}/stats/{ide}_{dist}.csv', index=False)
+        
+        if plot:
+            if not os.path.isdir(f"{outdir}/plots/"):
+                os.makedirs(f"{outdir}/plots/")
+            data = pd.read_csv(f'{outdir}/{ide}_{dist}.csv')
+            CMD('data/70_targets_extended.csv', s=100, color='grey', marker='*', alpha=0.5, label='Our sample')
+            ax=plt.gca()
+            ms_sample = pd.read_csv('data/ms_sample2.csv')
+            ax.scatter(ms_sample['bprp0'], ms_sample['mg0'], s=10, color='y', alpha=0.3, label='Gaia sample')
+            ax.scatter(data['bprp0'], data['mg0'], s=150, color='r', marker='*', label='Starhorse', zorder=3)
+            ax.scatter(data['BPRP_ext'][data['line']=='DIB 5780'], data['G_ext'][data['line']=='DIB 5780'], s=150, 
+                       color='blue', marker='*', label='DIB 5780Å', zorder=3)
+            ax.scatter(data['BPRP_ext'][data['line']=='DIB 6614'], data['G_ext'][data['line']=='DIB 5780'], s=150, 
+                       color='green', marker='*', label='DIB 6614Å', zorder=3)
+            ax.set_xlabel("$(BP - RP)$ [mag]", fontsize = 25)
+            ax.set_ylabel("$M_{G}$ [mag]", fontsize = 25)
+            ax.tick_params(labelsize = 20)  
+            xlim1 = min(data['BPRP_ext'])-0.1
+            xlim2 = min(-1.1, xlim1)
+            ax.set_xlim(xlim2, 1.6)
+            ax.set_ylim(2, -8)
+            ax.set_title(f'{ide}_{dist}', fontsize = 25)
+            ax.legend(fontsize = 18, frameon=True, fancybox=False, handletextpad=0.1, labelspacing=0.3)
+            plt.savefig(f"{outdir}/plots/{ide}_{dist}.png", bbox_inches = "tight")
+            plt.show()
+            plt.close()
+            
+            # Grid with lines
+            fig = plt.figure(constrained_layout=True, figsize=(12, 12))
+            gs = gridspec.GridSpec(2, 1, figure=fig, hspace=0.20)
+            ax0 = fig.add_subplot(gs[0,0])
+            ax1 = fig.add_subplot(gs[1,0])
+            axes = [ax0, ax1]
+            xranges = [[5770,5790], [6604,6624]]
+            rest_wls=[5780, 6614]
+
+            for ax, line_grid, xrange, rest_wl in zip(axes, line_list, xranges, rest_wls):
+                _ = su.spec_plot(filepath, norm='region', ax=ax, ylim=None, 
+                                 lines_file='data/spectral_lines.txt', plot=False, xmin=xrange[0], xmax=xrange[1])                        
+                ax.tick_params(axis='both', direction='in')
+                ax.set_ylabel('')
+                ax.set_xlabel('')
+                ax.set_title(line_grid, fontsize=16, weight='bold')        
+
+            fig.suptitle(f'{ide}_{dist}', fontsize=16, weight='bold')
+            fig.text(0.5, 0.09, r'Rest Wavelength [Å]', ha='center', va='center', fontsize=18)
+            fig.text(0.07, 0.5, r'Normilized Flux', ha='center', 
+                     va='center', rotation='vertical', fontsize=18)
+
+            plt.tight_layout()    
+            plt.savefig(f"{outdir}/plots/{ide}_{dist}_spec.png", bbox_inches = "tight", format = "png")
+            plt.show()
+            plt.close()

@@ -303,7 +303,7 @@ def fluxcalib_with_Gaia(file_to_calibrate, gaia_id, save_path, plot=False):
         # ax.set_ylim(bottom=-10, top=1200)
 
         # labels, text...
-        ax.set_xlabel("Rest Wavelength [A]", fontsize=16, fontfamily='serif')
+        ax.set_xlabel("Rest Wavelength [Å]", fontsize=16, fontfamily='serif')
         ax.set_ylabel("Flux [$10^{-17}$ erg s$^{-1}$ A$^{-1}$ cm$^{-2}$]", fontsize=16,  fontfamily='serif')
         ax.set_title(gaia_id, fontsize=16,  fontfamily='serif')
         ax.minorticks_on()
@@ -323,7 +323,7 @@ def fluxcalib_with_Gaia(file_to_calibrate, gaia_id, save_path, plot=False):
         # ax.set_ylim(bottom=-10, top=1200)
 
         # labels, text...
-        ax.set_xlabel("Rest Wavelength [A]", fontsize=16, fontfamily='serif')
+        ax.set_xlabel("Rest Wavelength [Å]", fontsize=16, fontfamily='serif')
         ax.set_ylabel("Normalized Flux", fontsize=16,  fontfamily='serif')
         ax.set_title(gaia_id, fontsize=16,  fontfamily='serif')
         ax.minorticks_on()
@@ -341,14 +341,14 @@ def fluxcalib_with_Gaia(file_to_calibrate, gaia_id, save_path, plot=False):
         ax.plot(raw_wl, gaussian_filter(raw_flux*factor, sigma=50))
         
         
-        ax.set_xlabel("Rest Wavelength [A]", fontsize=16, fontfamily='serif')
+        ax.set_xlabel("Rest Wavelength [Å]", fontsize=16, fontfamily='serif')
         ax.set_ylabel("Flux [$10^{-17}$ erg s$^{-1}$ A$^{-1}$ cm$^{-2}$]", fontsize=16,  fontfamily='serif')
         ax.set_title(gaia_id, fontsize=16,  fontfamily='serif')
         ax.minorticks_on()
         ax.tick_params(axis='both', which='both', labelsize=14, direction='in')
 
         # labels, text...
-        ax.set_xlabel("Rest Wavelength [A]", fontsize=18)
+        ax.set_xlabel("Rest Wavelength [Å]", fontsize=18)
         ax.set_ylabel("Flux [$10^{-17}$ erg s$^{-1}$ A$^{-1}$ cm$^{-2}$]", fontsize=18)
 
         plt.show()
@@ -432,7 +432,7 @@ def spec_plot(input_filename, norm=True, Av=None, ax=None, xmin=3900, xmax=9100,
     if Av is not None:
         flux = remove(fitzpatrick99(np.array(wavelength), Av, 3.1), np.array(flux))
     plotter(wavelength, flux, figsize=(14,6), plttype='plot', ax=ax, 
-            xlabel=r'Wavelength [$\AA$]', ylabel='Normalized Flux', title=name,
+            xlabel=r'Wavelength [Å]', ylabel='Normalized Flux', title=name,
             xmin=xmin, xmax=xmax, ylim=ylim, xinvert=False, yinvert=False, legend=False, 
             show=False, savepath=None, saveformat='png', color='k')
     
@@ -552,8 +552,8 @@ def cafos_spectra(input_filename, asciicords, xrange=[3500, 9501], calibration='
     if lines_file is not None:
         show_lines(ax, lines_file, xrange, priority)
     
-    ax.set_xlabel('Rest Wavelength [$\AA$]', fontsize=15)
-    ax.set_ylabel(r'Flux [$ergs \: cm^{-2} \: s^{-1} \: \AA^{-1}$]', fontsize=15)
+    ax.set_xlabel('Rest Wavelength [Å]', fontsize=15)
+    ax.set_ylabel(r'Flux [$ergs \: cm^{-2} \: s^{-1} \: Å^{-1}$]', fontsize=15)
     if (xrange[1] - xrange[0]) >= 2500:
         ax.set_xticks(np.arange(xrange[0], xrange[1], 500))
     ax.set_xlim(left=xrange[0], right=xrange[1])
@@ -738,7 +738,7 @@ def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250], dered=None, 
         if lines_file is not None:
             show_lines(ax, lines_file, xrange, priority)
             
-        ax.set_xlabel(r'Rest Wavelength [$\AA$]', fontsize=15)
+        ax.set_xlabel(r'Rest Wavelength [Å]', fontsize=15)
         ax.set_ylabel('Flux [number of counts]', fontsize=15)
         if (xrange[1] - xrange[0]) >= 2500:
             ax.set_xticks(np.arange(xrange[0], xrange[1], 500))
@@ -781,7 +781,7 @@ def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250], dered=None, 
                 ax.plot(data['WAVELENGTH'][0], data['FLUX'][0], color='k')
                 ax.set_title(f'{source_name}-{band}, LAMOST {resolu} spectrum', fontsize=16, weight='bold')
                     
-                ax.set_xlabel('Rest Wavelength [Angstrom]', fontsize=15)
+                ax.set_xlabel('Rest Wavelength [Å]', fontsize=15)
                 ax.set_ylabel('Flux [number of counts]', fontsize=15)
                 if band == 'COADD_B':
                     continue
@@ -822,7 +822,7 @@ def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250], dered=None, 
                 ax2.plot(spec['WAVELENGTH'][0], spec['FLUX'][0], label=spec_name)
             
             plt.title(f'{source_name}, Single exposures LAMOST {resolu} spectra', fontsize=16, weight='bold')
-            ax2.set_xlabel('Rest Wavelength [$\AA$]', fontsize=15)
+            ax2.set_xlabel('Rest Wavelength [Å]', fontsize=15)
             ax2.set_ylabel('Flux [number of counts]', fontsize=15)
             ax2.set_xticks(np.arange(4900, 5401, 50))
             ax2.set_xlim(left=4850, right=5401)
@@ -846,7 +846,7 @@ def lamost_spectra(input_filename, asciicords, xrange=[3500, 9250], dered=None, 
                 ax3.plot(spec['WAVELENGTH'][0], spec['FLUX'][0], label=spec_name)
             
             plt.title(f'{source_name}, Single exposures LAMOST {resolu} spectra', fontsize=16, weight='bold')
-            ax3.set_xlabel('Rest Wavelength [$\AA$]', fontsize=15)
+            ax3.set_xlabel('Rest Wavelength [Å]', fontsize=15)
             ax3.set_ylabel('Flux [number of counts]', fontsize=15)
             ax3.set_xticks(np.arange(6200, 6900, 50))
             ax3.set_xlim(left=6200, right=6901)
@@ -980,14 +980,14 @@ def classification_grid(wavelengths, fluxes, Obj_name, bin_size=None, velocity_r
             rest_wls = classification_lines.get(sub)
             for idx, rest_wl in enumerate(rest_wls):
                 # mask = (wavelengths>rest_wl-xrange[0]) & (wavelengths<rest_wl+xrange[1])
-                label=fr'{rest_wl} $\AA$'
+                label=fr'{rest_wl} Å'
                 if transition == ['Fe II', 'Mg II']:
                     sub = 'Fe II and Mg II'
                     if rest_wl == 4481.15:
-                        label = fr'MgII {rest_wl} $\AA$'
+                        label = fr'MgII {rest_wl} Å'
                         color = '#70E000'
                     else:
-                        label = fr'FeII {rest_wl} $\AA$'
+                        label = fr'FeII {rest_wl} Å'
                         color = color_palette[idx % len(color_palette)]
                 else:
                     color = color_palette[idx % len(color_palette)]
@@ -1077,11 +1077,11 @@ def find_lines(wavelength, flux, xmin, xmax, norm=True, smooth=None, threshold=1
         lines = find_lines_threshold(spectrum, noise_factor=threshold)
    
     abs_lines = lines[lines['line_type'] == 'absorption']['line_center'].value
-    emi_lines = lines[lines['line_type'] == 'emision']['line_center'].value
+    emi_lines = lines[lines['line_type'] == 'emission']['line_center'].value
    
     if plot:
         plotter(wavelength[mask], flux[mask], figsize=(14,6), plttype='plot', ax=None,
-                xlabel=r'Wavelength [$\AA$]', ylabel='Normalized Flux', title=None,
+                xlabel=r'Wavelength [Å]', ylabel='Normalized Flux', title=None,
                 xmin=xmin, xmax=xmax, ylim=None, xinvert=False, yinvert=False, legend=False,
                 show=False, savepath=None, saveformat='png', color='k')
         ax=plt.gca()
@@ -1122,7 +1122,11 @@ def EW(filepath, xrange):
     
     flux_mean = spec_plot(filepath, norm='region', ax=None, ylim=None, 
                           lines_file='data/spectral_lines.txt', plot=True, xmin=xmin, xmax=xmax)
-    sigma=None
+    smooth = input('Sigma to smooth the spectrum to find the lines (skip to not smooth the spectrum): ')
+    if smooth == '':
+        sigma = None
+    else:
+        sigma = float(smooth)
     threshold = float(input('Find lines threshold: '))
     input_noise = input('Noise range (left and right separated by a comma, or None): ')
     if input_noise.lower() in ['none', 'n']:
@@ -1150,25 +1154,27 @@ def EW(filepath, xrange):
                 noise_range = None
             else:
                 noise_range = np.array(input_noise.split(',')).astype(int) 
-    
-    line_width = float(input('Width of the line (window to fit a gaussian): '))
+
     gaussian_init_abs = []
-    for line in abs_lines:
+    for i, line in enumerate(abs_lines):
+        line_width = float(input(f'Width of absorption line {i+1} at {line} Å (window to fit a gaussian): '))
         sub_region = SpectralRegion((line-line_width/2)*u.angstrom, (line+line_width/2)*u.angstrom)
         sub_spectrum = extract_region(spectrum, sub_region)
         result = estimate_line_parameters(sub_spectrum, models.Gaussian1D())
         g_init = models.Gaussian1D(amplitude=result.amplitude.value* u.Unit('erg / (cm2 s Å)'), 
-                                   mean=line*u.angstrom, stddev=result.stddev.value*u.angstrom)
+                                    mean=line*u.angstrom, stddev=result.stddev.value*u.angstrom)
         gaussian_init_abs.append(g_init)
         
     gaussian_init_emi = []
-    for line in emi_lines:
+    for i, line in enumerate(emi_lines):
+        line_width = float(input(f'Width of emission line {i+1} at {line} Å (window to fit a gaussian): '))
         sub_region = SpectralRegion((line-line_width/2)*u.angstrom, (line+line_width/2)*u.angstrom)
         sub_spectrum = extract_region(spectrum, sub_region)
         result = estimate_line_parameters(sub_spectrum, models.Gaussian1D())
         g_init = models.Gaussian1D(amplitude=result.amplitude.value* u.Unit('erg / (cm2 s Å)'), 
-                                   mean=line*u.angstrom, stddev=result.stddev.value*u.angstrom)
+                                    mean=line*u.angstrom, stddev=result.stddev.value*u.angstrom)
         gaussian_init_emi.append(g_init)
+                
     
     spectrum_min_line = spectrum
     # gaus_fit_abs = []
@@ -1176,8 +1182,14 @@ def EW(filepath, xrange):
     ew_specutils_abs = []
     ew_quad_abs = []
     for i, gaus_line in enumerate(gaussian_init_abs):
-        input_text = f'Window for the fit of absorption line {i+1} (wl axis left and right separated by a comma): '
-        window = np.array((input(input_text)).split(',')).astype(float)
+        input_text = f'Window for the fit of absorption line {i+1} (wl axis left and right separated by a comma, or "skip"): '
+        input_value = input(input_text)
+        if input_value == 'skip':
+            abs_lines = np.delete(abs_lines, i)
+            # abs_lines.remove(abs_lines[i])
+            print(f'Skipping absorption line {i+1} at {abs_lines[i]}...')
+            continue
+        window = np.array(input_value.split(',')).astype(float)
         ew = equivalent_width(spectrum_min_line+1* u.Unit('erg / (cm2 s Å)'), 
                               regions=SpectralRegion(window[0]*u.angstrom, window[1]*u.angstrom))
         ew_specutils_abs.append(ew.value)
@@ -1196,15 +1208,19 @@ def EW(filepath, xrange):
                         color='blue', alpha=0.3)
         plt.show()
         plt.close()
-        
+            
     spectrum_min_line = spectrum
     # gaus_fit_emi = []
     flux_fit_emi = []
     ew_specutils_emi = []
     ew_quad_emi = []
     for i, gaus_line in enumerate(gaussian_init_emi):
-        input_text = f'Window for the fit of emission line {i+1} (wl axis left and right separated by a comma): '
-        window = np.array((input(input_text)).split(',')).astype(float)
+        input_text = f'Window for the fit of emission line {i+1} (wl axis left and right separated by a comma, or "skip"): '
+        input_value = input(input_text)
+        if input_value == 'skip':
+            print(f'Skipping emission line {i+1} at {emi_lines[i]}...')
+            continue
+        window = np.array(input_value.split(',')).astype(float)
         ew = equivalent_width(spectrum_min_line+1* u.Unit('erg / (cm2 s Å)'), 
                               regions=SpectralRegion(window[0]*u.angstrom, window[1]*u.angstrom))
         ew_specutils_emi.append(ew.value)
@@ -1219,12 +1235,168 @@ def EW(filepath, xrange):
                               lines_file='data/spectral_lines.txt', plot=False, xmin=xmin, xmax=xmax)
         for j, fitted_line in enumerate(flux_fit_emi):
             plt.plot(wavelength[mask], fitted_line+1* u.Unit('erg / (cm2 s Å)'))
-            plt.axvspan(abs_lines[j]-ew_specutils_emi[j]/2, abs_lines[j]+ew_specutils_emi[j]/2, 
+            plt.axvspan(emi_lines[j]-ew_specutils_emi[j]/2, emi_lines[j]+ew_specutils_emi[j]/2, 
                         color='blue', alpha=0.3)
         plt.show()
         plt.close()
     
     return ew_specutils_abs, ew_quad_abs, ew_specutils_emi, ew_quad_emi
+
+def EW2(filepath, xrange, n=100):
+    
+    # Read spectrum
+    spectrum = pd.read_csv(filepath, sep=' ')
+    wavelength = np.array(spectrum['wavelength'])
+    og_wl = wavelength
+    flux = np.array(spectrum['flux'])
+    og_flux = flux
+    xmin=xrange[0]
+    xmax=xrange[1]
+    mask = (wavelength>xmin)&(wavelength<xmax)
+    
+    spec_plot(filepath, norm=False, ax=None, ylim=None, 
+              lines_file='data/spectral_lines.txt', plot=True, xmin=xmin, xmax=xmax)
+    
+    input_range = input('Range to show (left and right separated by a comma, or none): ')
+    if input_range.lower() in ['none', 'n', '']:
+        plot_range = None
+    else:
+        plot_range = np.array(input_range.split(',')).astype(float)
+    
+    print('------------------------------------------------')
+    print('Chose two ranges to compute the continuum from: ')
+    print('------------------------------------------------')
+    input_continuum1 = input('Range 1 (left and right separated by a comma): ')
+    input_continuum2 = input('Range 2 (left and right separated by a comma): ')
+    
+    cont_range1 = np.array(input_continuum1.split(',')).astype(float)
+    cont_range2 = np.array(input_continuum2.split(',')).astype(float)
+    
+    # Normalize
+    mask_range1 = (wavelength > cont_range1[0]) & (wavelength < cont_range1[1])
+    flux_range1 = flux[mask_range1]
+    mask_range2 = (wavelength > cont_range2[0]) & (wavelength < cont_range2[1])
+    flux_range2 = flux[mask_range2]
+    flux_median = np.median(np.array([np.median(flux_range1),np.median(flux_range2)]))
+    original_flux = flux
+    original_flux_median = flux_median
+    flux = flux/flux_median -1
+    
+    mask = (wavelength>plot_range[0])&(wavelength<plot_range[1])
+    wavelength=wavelength[mask]
+    flux=flux[mask]
+    original_flux=original_flux[mask]
+    spectrum = Spectrum1D(spectral_axis=wavelength * u.angstrom, 
+                          flux=flux * u.Unit('erg / (cm2 s Å)') )
+    
+    plotter(wavelength, flux, figsize=(14,6), plttype='plot', ax=None,
+            xlabel=r'Wavelength [Å]', ylabel='Normalized Flux', title=None,
+            xmin=plot_range[0], xmax=plot_range[1], ylim=None, xinvert=False, yinvert=False, legend=False,
+            show=False, savepath=None, saveformat='png', color='k')
+    ax=plt.gca()
+    ax.axhline(flux_median, ls='--')
+    ax.grid(True, which='both', axis='both')
+    plt.tight_layout()
+    plt.show()
+    plt.close()
+    
+    plotter(wavelength, flux, figsize=(14,6), plttype='plot', ax=None,
+            xlabel=r'Wavelength [Å]', ylabel='Normalized Flux', title=None,
+            xmin=plot_range[0], xmax=plot_range[1], ylim=None, xinvert=False, yinvert=False, legend=False,
+            show=False, savepath=None, saveformat='png', color='k')
+    ax=plt.gca()
+    ax.axhline(flux_median, ls='--')
+    ax.grid(True, which='both', axis='both')
+    
+    smoothed_flux = gaussian_filter(flux, sigma=5)
+    ax.plot(wavelength, smoothed_flux, label='Smoothed spec')
+    spectrum_smooth = Spectrum1D(spectral_axis=wavelength * u.angstrom, 
+                          flux=smoothed_flux * u.Unit('erg / (cm2 s Å)') )
+    result = estimate_line_parameters(spectrum_smooth, models.Gaussian1D())
+    g_init = models.Gaussian1D(amplitude=result.amplitude.value* u.Unit('erg / (cm2 s Å)'), 
+                               mean=result.mean.value*u.angstrom, stddev=result.stddev.value*u.angstrom)
+    g_fit = fit_lines(spectrum, g_init, window=(plot_range[0]*u.angstrom, plot_range[1]*u.angstrom))
+    y_fit = g_fit(wavelength*u.angstrom)
+    ax.plot(wavelength, y_fit, label= 'Gaus fit')
+    
+    plt.tight_layout()
+    plt.show()
+    plt.close()
+    
+    gaus_or_no = input('Use Gaus fit? (yes/no): ')
+    if gaus_or_no.lower() in ['y', 'yes']:
+        window = [g_fit.mean.value - 3*g_fit.stddev.value, g_fit.mean.value + 3*g_fit.stddev.value]
+        # window_mask = y_fit<(-1e-2* u.Unit('erg / (cm2 s Å)'))
+        # ax.axvline(min(wavelength[window_mask]))
+        # ax.axvline(max(wavelength[window_mask]))
+    else:
+        input_window = input('Window to compute equivalent width (left and right separated by a comma): ')
+        window = np.array(input_window.split(',')).astype(float)
+    
+    plotter(wavelength, flux, figsize=(14,6), plttype='plot', ax=None,
+            xlabel=r'Wavelength [Å]', ylabel='Normalized Flux', title=None,
+            xmin=plot_range[0], xmax=plot_range[1], ylim=None, xinvert=False, yinvert=False, legend=False,
+            show=False, savepath=None, saveformat='png', color='k')
+    ax=plt.gca()
+    ax.axhline(0, ls='--') #continuum
+    ax.grid(True, which='both', axis='both')
+    
+    ax.axvline(window[0], c='r', ls='--')
+    ax.axvline(window[1], c='r', ls='--')
+    
+    ew = equivalent_width(spectrum+1* u.Unit('erg / (cm2 s Å)'), 
+                          regions=SpectralRegion(window[0]*u.angstrom, window[1]*u.angstrom))
+    
+    window_length = window[1]-window[0]
+    if gaus_or_no.lower() in ['y', 'yes']:
+        ax.axvspan(g_fit.mean.value-ew.value, g_fit.mean.value+ew.value, color='k', alpha=0.3)
+    else:
+        ax.axvspan((window[0]+window_length/2)-ew.value, (window[1]-window_length/2)+ew.value, color='k', alpha=0.3)
+    
+    plt.tight_layout()
+    plt.show()
+    plt.close()
+    
+    print('----------------------------------------------------------------------------')
+    print(f'Iterating {n} times to find EW with error by changing window length randomly')
+    print('----------------------------------------------------------------------------')
+    
+    ews = []
+    window_length_n = []
+    flux_median_n = []
+    if n != 0:
+        for _ in range(n):
+            # Shift the window
+            shift = np.random.uniform(-0.25, 0.25)
+            new_window = (window[0] - shift, window[1] + shift)
+            new_window_length = new_window[1] - new_window[0]
+            window_length_n.append(new_window_length)
+            
+            # Shift the continuum to normalize
+            shift = np.random.uniform(-0.5, 0.5)
+            mask_range1 = (og_wl > (cont_range1[0]+shift)) & (og_wl < (cont_range1[1]+shift))
+            flux_range1 = og_flux[mask_range1]
+            mask_range2 = (og_wl > (cont_range2[0]+shift)) & (og_wl < (cont_range2[1]+shift))
+            flux_range2 = og_flux[mask_range2]
+            flux_median = np.median(np.array([np.median(flux_range1),np.median(flux_range2)]))
+            flux = original_flux/flux_median -1
+            flux_median_n.append(flux_median)
+            
+            spectrum_i = Spectrum1D(spectral_axis=wavelength * u.angstrom, 
+                                    flux=flux * u.Unit('erg / (cm2 s Å)') )
+            
+            ew_i = equivalent_width(spectrum_i+1* u.Unit('erg / (cm2 s Å)'), 
+                                    regions=SpectralRegion(new_window[0]*u.angstrom, new_window[1]*u.angstrom))
+            ews.append(ew_i.value)
+
+        mean_ew = np.mean(ews)
+        std_ew = np.std(ews)
+        std_length = np.std(np.array(window_length_n)/window_length)
+        std_cont = np.std(np.array(flux_median_n)/original_flux_median)
+    
+        return ew.value, mean_ew, std_ew, [std_length, std_cont]
+    
+    return ew.value
     
 def NaID_extinction(ew, line='D1'):
     if line == 'D1':
@@ -1235,14 +1407,18 @@ def NaID_extinction(ew, line='D1'):
         D2 = 10**(2.16*ew - 1.91)
         AVD2 = D2*3.1
         return D2, AVD2
+    elif line=='combined':
+        D1_D2 = 10**(1.17*ew - 1.85)
+        AVD1_D2 = D1_D2*3.1
+        return D1_D2, AVD1_D2
     
 def DiBs_extinction(ew, line='5780'):
     if line == '5780':
-        dib5780 = 1.978*ew +0.035
+        dib5780 = 1.978*ew + 0.035
         AV5780 = dib5780*3.1
         return dib5780, AV5780
     elif line == '6614':
-        dib6614 = 3.846*ew +0.072
+        dib6614 = 3.846*ew + 0.072
         AV6614 = dib6614*3.1
         return dib6614, AV6614
 
